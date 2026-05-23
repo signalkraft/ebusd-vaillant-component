@@ -25,11 +25,11 @@ controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 
 ## Installation (HACS)
 
-1. Go to **HACS → Integrations → Custom repositories**
+1. Go to **HACS → Custom repositories**
    ([HACS custom repositories docs](https://hacs.xyz/docs/faq/custom_repositories/))
 2. Add the repository URL: `https://github.com/signalkraft/ebusd-vaillant-component`
-   with category **Integration**
-3. Search for the `ebusd Vaillant` integration and **download** it
+   with category **Integration** and save
+3. Search for the `ebusd Vaillant` integration in HACS and **download** it
 4. Restart Home Assistant
 5. Add the integration through
    **Settings → Devices & services → Add integration
@@ -54,10 +54,10 @@ controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 
 ## Configuration
 
-| Setting | Default | Description |
-|---|---|---|
-| MQTT prefix | `ebusd` | Root topic ebusd publishes to |
-| Name | `Vaillant` | Label prefix for entity names |
+| Setting     | Default    | Description                   |
+|-------------|------------|-------------------------------|
+| MQTT prefix | `ebusd`    | Root topic ebusd publishes to |
+| Name        | `Vaillant` | Label prefix for entity names |
 
 ## Services
 
@@ -68,4 +68,8 @@ The integration exposes two diagnostic services:
 
 ## MQTT Mapping
 
-See the [MQTT Mapping](https://signalkraft.github.io/ebusd-vaillant-component/mapping/) page for the complete reference of which topics map to which Home Assistant controls.
+See the [MQTT Mapping](https://signalkraft.com/ebusd-vaillant-component/mapping/) page for the complete reference of which topics map to which Home Assistant controls.
+
+## Troubleshooting
+
+Check the [ebus setup & troubleshooting](https://signalkraft.com/ebusd-vaillant-component/ebusd/#troubleshooting) guide.
