@@ -1,0 +1,601 @@
+ebusd/hmu:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 1
+        disablehwcload: 1
+        remotecontrolhcpump: 0
+        releasebackup: 0
+        releasecooling: 0
+    Status01:
+        temp: 29.5
+        temp_1: 27.5
+        temp_2: null
+        temp_3: null
+        temp_4: null
+        pumpstate: "off"
+    StatusCirPump: "off"
+    YieldHcDay: 0
+    YieldCoolDay: 0
+    YieldHwcDay: 0
+    YieldHcMonth: 46
+    YieldHc: 25996
+    YieldHwcMonth: 156.9
+    YieldHwc: 11760
+    SupplyTempWeighted: 20.69
+    FlowTemp: 30.25
+    EnergyIntegral: 0
+    CurrentYieldPower: 0
+    CurrentConsumedPower: 0
+    YieldCoolingMonth: 0
+    YieldCooling: 60.5
+    TotalEnergyUsage: 13592
+    RunDataStatuscode: standby
+    RunDataCompressorInletTemp: 23.0269
+    RunDataCompressorOutletTemp: 25.125
+    RunDataEEVOutletTemp: 20.25
+    RunDataAirInletTemp: 16.2821
+    RunDataBuildingCPumpPower: 0
+    RunStatsHMUHours: 31859
+    RunStatsHcHours: 4156
+    RunStatsHwcHours: 2776
+    RunStatsCompressorHours: 7026
+    RunStatsCompressorStarts: 5450
+    RunStatsBuildingPumpHours: 8129
+    RunStatsBuildingCPumpStarts: 12115
+    RunStats4PortValveHours: 331
+    RunStatsFan1Hours: 7162
+    RunStatsFan1Starts: 7787
+    RunStatsFan2Hours: 0
+    RunStatsFan2Starts: 0
+    Currenterror:
+        error: null
+        error_1: null
+        error_2: null
+        error_3: null
+        error_4: null
+    RunDataCompressorSpeed: 0
+ebusd/ctlv2:
+    Hc1ActualFlowTempDesired: 0
+    Hc2AutoOffMode: eco
+    Hc1PumpStatus: 0
+    Z1OpMode: auto
+    Hc2ExcessTemp: 0
+    Z1ActualRoomTempDesired: 21.5
+    Z1DayTemp: 21
+    Z1Timer_Config: 00 0c 0a 05 01 0c 05 1e 00
+    HwcTimer_Config: 00 03 0a 0a 01 01 23 46 00
+    CcTimer_Config: 00 03 0a 00 00 00 ff ff 00
+    Z2Timer_Config: 03 01 01 00 00 00 ff ff 00
+    Z3Timer_Config: 03 01 01 00 00 00 ff ff 00
+    Z1Timer_Timeframes:
+        slotcount: 3
+        slotcount_1: 3
+        slotcount_2: 3
+        slotcount_3: 3
+        slotcount_4: 3
+        slotcount_5: 3
+        slotcount_6: 3
+    HwcTimer_Timeframes:
+        slotcount: 1
+        slotcount_1: 1
+        slotcount_2: 1
+        slotcount_3: 1
+        slotcount_4: 1
+        slotcount_5: 1
+        slotcount_6: 1
+    CcTimer_Timeframes:
+        slotcount: 0
+        slotcount_1: 0
+        slotcount_2: 0
+        slotcount_3: 0
+        slotcount_4: 0
+        slotcount_5: 0
+        slotcount_6: 0
+    Z2Timer_Timeframes:
+        slotcount: 0
+        slotcount_1: 0
+        slotcount_2: 0
+        slotcount_3: 0
+        slotcount_4: 0
+        slotcount_5: 0
+        slotcount_6: 0
+    Z3Timer_Timeframes:
+        slotcount: 0
+        slotcount_1: 0
+        slotcount_2: 0
+        slotcount_3: 0
+        slotcount_4: 0
+        slotcount_5: 0
+        slotcount_6: 0
+    Z1Timer_Monday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
+    Z1Timer_Tuesday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
+    Z1Timer_Wednesday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
+    Z1Timer_Thursday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
+    Z1Timer_Friday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
+    Z1Timer_Saturday1:
+        htm: "07:30"
+        htm_1: "22:30"
+        slottemp: 21
+    Z1Timer_Sunday1:
+        htm: "07:30"
+        htm_1: "22:30"
+        slottemp: 21
+    HwcTimer_Monday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Tuesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Wednesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Thursday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Friday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Saturday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Sunday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    CcTimer_Monday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Tuesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Wednesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Thursday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Friday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Saturday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Sunday1:
+        htm: "00:00"
+        htm_1: "00:00"
+    Z2Timer_Monday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Tuesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Wednesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Thursday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Friday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Saturday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Sunday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Monday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Tuesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Wednesday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Thursday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Friday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Saturday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Sunday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z1Timer_Monday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
+    Z1Timer_Tuesday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
+    Z1Timer_Wednesday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
+    Z1Timer_Thursday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
+    Z1Timer_Friday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
+    Z1Timer_Saturday0:
+        htm: "00:00"
+        htm_1: "07:30"
+        slottemp: 21
+    Z1Timer_Sunday0:
+        htm: "00:00"
+        htm_1: "07:30"
+        slottemp: 21
+    HwcTimer_Monday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
+    HwcTimer_Tuesday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
+    HwcTimer_Wednesday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
+    HwcTimer_Thursday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
+    HwcTimer_Friday0:
+        htm: "05:30"
+        htm_1: "20:00"
+        slottemp: 55
+    HwcTimer_Saturday0:
+        htm: "06:00"
+        htm_1: "19:00"
+        slottemp: 55
+    HwcTimer_Sunday0:
+        htm: "06:00"
+        htm_1: "19:00"
+        slottemp: 55
+    CcTimer_Monday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Tuesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Wednesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Thursday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Friday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Saturday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Sunday0:
+        htm: "00:00"
+        htm_1: "00:00"
+    Z2Timer_Monday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Tuesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Wednesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Thursday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Friday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Saturday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Sunday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Monday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Tuesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Wednesday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Thursday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Friday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Saturday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Sunday0:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z1Timer_Monday2:
+        htm: "20:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Tuesday2:
+        htm: "20:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Wednesday2:
+        htm: "20:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Thursday2:
+        htm: "20:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Friday2:
+        htm: "20:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Saturday2:
+        htm: "22:30"
+        htm_1: "24:00"
+        slottemp: 21
+    Z1Timer_Sunday2:
+        htm: "22:30"
+        htm_1: "24:00"
+        slottemp: 21
+    HwcTimer_Monday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Tuesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Wednesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Thursday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Friday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Saturday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Sunday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    CcTimer_Monday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Tuesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Wednesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Thursday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Friday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Saturday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    CcTimer_Sunday2:
+        htm: "00:00"
+        htm_1: "00:00"
+    Z2Timer_Monday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Tuesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Wednesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Thursday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Friday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Saturday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z2Timer_Sunday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Monday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Tuesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Wednesday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Thursday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Friday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Saturday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z3Timer_Sunday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z1CoolingTemp: 22
+    Z2CoolingTemp: 24
+    HwcOpMode: auto
+    Z2OpMode: auto
+    Z3OpMode: auto
+    Hc2ActualFlowTempDesired: 0
+    Hc3ActualFlowTempDesired: 0
+    HwcTempDesired: 55
+    HwcStorageTemp: 41
+    Z1HolidayTemp: 15
+    Z2HolidayTemp: 15
+    Z3HolidayTemp: 15
+    Hc1ExcessTemp: 0
+    Hc3ExcessTemp: 0
+    HwcFlowTemp: 0
+    Hc1FlowTemp: 29.5
+    Z2QuickVetoTemp: 21
+    Z3QuickVetoTemp: 21
+    Z1NightTemp: 18
+    Z2NightTemp: 15
+    Z3NightTemp: 15
+    MaxRoomHumidity: 40
+    Hc1AutoOffMode: eco
+    Hc3AutoOffMode: eco
+    Z2SFMode: auto
+    Z3SFMode: auto
+    Hc1HeatCurve: 0.956144
+    Hc2HeatCurve: 0.6
+    Hc3HeatCurve: 0.6
+    Z1RoomTemp: 20.35
+    HwcSFMode: load
+    Hc1MinFlowTempDesired: 32
+    Hc2MinFlowTempDesired: 15
+    Hc3MinFlowTempDesired: 15
+    Z1ValveStatus: 0
+    Z2ValveStatus: 0
+    Z3ValveStatus: 0
+    Hc1MaxFlowTempDesired: 90
+    Hc2MaxFlowTempDesired: 55
+    Hc3MaxFlowTempDesired: 55
+    Hc1MinCoolingTempDesired: 15
+    Hc2MinCoolingTempDesired: 20
+    Hc3MinCoolingTempDesired: 20
+    AdaptHeatCurve: "yes"
+    Hc1SummerTempLimit: 18
+    Hc2SummerTempLimit: 21
+    Hc3SummerTempLimit: 21
+    Z2ActualRoomTempDesired: 0
+    Z3ActualRoomTempDesired: 0
+    Hc1RoomTempSwitchOn: thermostat
+    Hc2RoomTempSwitchOn: "off"
+    Hc3RoomTempSwitchOn: "off"
+    Hc1Status: 0
+    Hc2Status: 0
+    Hc3Status: 0
+    Hc2PumpStatus: 0
+    Hc3PumpStatus: 0
+    Hc1HeatCurveAdaption: -0.193856
+    Hc2HeatCurveAdaption: 0
+    Hc3HeatCurveAdaption: 0
+    Z2DayTemp: 21
+    Z3DayTemp: 21
+    YieldTotal: 38361
+    SolarYieldTotal: 0
+    HwcMaxFlowTempDesired: 80
+    PrEnergySumHcThisMonth: 19
+    PrEnergySumHcLastMonth: 136
+    PrEnergySumHwcThisMonth: 67
+    PrEnergySumHc: 9057
+    PrEnergySumHwcLastMonth: 129
+    PrEnergySumHwc: 4905
+    DisplayedOutsideTemp: 15.8047
+    OutsideTempAvg: 23.8477
+    Z1QuickVetoTemp: 21.5
+    Z1SFMode: auto
+    Currenterror:
+        error: null
+        error_1: null
+        error_2: null
+        error_3: null
+        error_4: null
+    HwcParallelLoading: "off"
+    Hc1MixerMovement: 0
+    WaterPressure: 2.3
+    Z1QuickVetoDuration: 3
+    Z1QuickVetoEndTime: "00:00:00"
+    Z1QuickVetoEndDate: 01.01.2015
+    Date: 23.05.2026
+    Time: "00:29:09"

@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "sensor": {
+      "ebusd_pressure": {
+        "default": "mdi:gauge"
+      }
+    },
+    "water_heater": {
+      "ebusd_water_heater": {
+        "state": {
+          "auto": "mdi:water-boiler-auto",
+          "day": "mdi:weather-sunny"
+        }
+      }
+    }
+  }
+}

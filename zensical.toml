@@ -1,0 +1,36 @@
+[project]
+site_name = "ebusd Vaillant"
+site_description = "Home Assistant custom component for Vaillant heating devices over ebusd MQTT"
+repo_url = "https://github.com/signalkraft/ebusd-vaillant"
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+    { "Home" = "index.md" },
+    { "ebusd Setup" = "ebusd.md" },
+    { "MQTT Mapping" = "mapping.md" },
+    { "Capturing Test Data" = "data-capture.md" },
+]
+
+[project.extra]
+generator = false
+
+[project.theme]
+logo = "assets/logo.png"
+features = ["content.code.annotate"]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"

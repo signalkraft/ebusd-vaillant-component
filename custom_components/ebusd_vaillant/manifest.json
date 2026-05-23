@@ -1,0 +1,15 @@
+{
+  "domain": "ebusd_vaillant",
+  "name": "ebusd Vaillant",
+  "codeowners": [
+    "@signalkraft"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "mqtt"
+  ],
+  "documentation": "https://github.com/signalkraft/ebusd-vaillant-component#readme",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/signalkraft/ebusd-vaillant-component/issues",
+  "version": "0.1.0"
+}

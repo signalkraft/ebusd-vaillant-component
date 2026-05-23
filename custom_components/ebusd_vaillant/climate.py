@@ -1,0 +1,332 @@
+"""Climate entities for ebusd Vaillant heating zones."""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime, timedelta
+from typing import Any
+
+from homeassistant.components import mqtt
+from homeassistant.components.climate import (
+    PRESET_AWAY,
+    PRESET_BOOST,
+    PRESET_NONE,
+    ClimateEntity,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN, EBUSD_TO_HA_HVAC, HA_TO_EBUSD_HVAC
+from .coordinator import EbusdCoordinator
+from .discovery import DiscoveredClimate, TopicConfig, _get
+
+_LOGGER = logging.getLogger(__name__)
+
+_HA_HVAC_MODE = {
+    "auto": HVACMode.AUTO,
+    "heat": HVACMode.HEAT,
+    "cool": HVACMode.COOL,
+    "off": HVACMode.OFF,
+}
+
+_HOLIDAY_RESET = "01.01.2015"
+_DATE_FMT = "%d.%m.%Y"
+_TIME_FMT = "%H:%M:%S"
+_QUICK_VETO_CANCEL_DATE = "01.01.2015"
+_QUICK_VETO_CANCEL_TIME = "00:00:00"
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
+    entities_by_name: dict[str, EbusdClimateEntity] = {}
+
+    def _on_discover(entities: list) -> None:
+        new = []
+        for e in entities:
+            if not isinstance(e, DiscoveredClimate):
+                continue
+            if e.name in entities_by_name:
+                hass.async_create_task(entities_by_name[e.name].async_update_config(e, coordinator))
+            else:
+                entity = EbusdClimateEntity(hass, e)
+                entities_by_name[e.name] = entity
+                new.append(entity)
+        if new:
+            async_add_entities(new)
+
+    coordinator.add_listener(_on_discover)
+
+
+class EbusdClimateEntity(ClimateEntity):
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_preset_modes = [PRESET_NONE, PRESET_BOOST, PRESET_AWAY]
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredClimate) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_name = config.name
+        self._attr_unique_id = f"ebusd_climate_{config.key}"
+        self._attr_min_temp = config.min_temp
+        self._attr_max_temp = config.max_temp
+        self._attr_target_temperature_step = config.temp_step
+
+        self._attr_hvac_modes = [_HA_HVAC_MODE[m] for m in config.hvac_modes if m in _HA_HVAC_MODE]
+        self._attr_hvac_mode = HVACMode.OFF
+        self._attr_hvac_action = HVACAction.OFF
+
+        self._attr_current_temperature: float | None = None
+        self._attr_target_temperature: float | None = None
+        self._attr_target_temperature_high: float | None = None
+        self._attr_target_temperature_low: float | None = None
+
+        self._holiday_start: str | None = None
+        self._holiday_end: str | None = None
+        self._quick_veto_end_date: str | None = None
+        self._quick_veto_end_time: str | None = None
+
+        features = (
+            ClimateEntityFeature.TURN_ON
+            | ClimateEntityFeature.TURN_OFF
+            | ClimateEntityFeature.PRESET_MODE
+        )
+        if config.target_temperature:
+            features |= ClimateEntityFeature.TARGET_TEMPERATURE
+        if config.target_temperature_high or config.target_temperature_low:
+            features |= ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
+        self._attr_supported_features = features
+
+        self._unsubscribe: list[Any] = []
+
+    async def async_added_to_hass(self) -> None:
+        await self._subscribe(self._config.mode, self._handle_mode)
+        if self._config.current_temperature:
+            await self._subscribe(self._config.current_temperature, self._handle_current_temp)
+        if self._config.target_temperature:
+            await self._subscribe(self._config.target_temperature, self._handle_target_temp)
+        if self._config.target_temperature_high:
+            await self._subscribe(self._config.target_temperature_high, self._handle_target_high)
+        if self._config.target_temperature_low:
+            await self._subscribe(self._config.target_temperature_low, self._handle_target_low)
+        if self._config.holiday_start:
+            await self._subscribe(self._config.holiday_start, self._handle_holiday_start)
+        if self._config.holiday_end:
+            await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
+        if self._config.quick_veto_end_date:
+            await self._subscribe(
+                self._config.quick_veto_end_date, self._handle_quick_veto_end_date
+            )
+        if self._config.quick_veto_end_time:
+            await self._subscribe(
+                self._config.quick_veto_end_time, self._handle_quick_veto_end_time
+            )
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._unsubscribe:
+            unsub()
+
+    async def async_update_config(
+        self, config: DiscoveredClimate, coordinator: EbusdCoordinator
+    ) -> None:
+        """Subscribe to any temperature topics that became available after initial creation."""
+        if config.target_temperature and not self._config.target_temperature:
+            await self._subscribe(config.target_temperature, self._handle_target_temp)
+            self._attr_supported_features |= ClimateEntityFeature.TARGET_TEMPERATURE
+            val = coordinator.get_current_value(config.target_temperature)
+            if val is not None:
+                self._handle_target_temp(val)
+        if config.target_temperature_high and not self._config.target_temperature_high:
+            await self._subscribe(config.target_temperature_high, self._handle_target_high)
+            self._attr_supported_features |= ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
+            val = coordinator.get_current_value(config.target_temperature_high)
+            if val is not None:
+                self._handle_target_high(val)
+        if config.target_temperature_low and not self._config.target_temperature_low:
+            await self._subscribe(config.target_temperature_low, self._handle_target_low)
+            self._attr_supported_features |= ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
+            val = coordinator.get_current_value(config.target_temperature_low)
+            if val is not None:
+                self._handle_target_low(val)
+        self._config = config
+        self.async_write_ha_state()
+
+    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+        @callback
+        def _wrap(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            value = _get(payload, topic_cfg.field)
+            if value is not None:
+                handler(value)
+                self.async_write_ha_state()
+
+        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
+        self._unsubscribe.append(unsub)
+
+    @callback
+    def _handle_mode(self, value: str) -> None:
+        ha_mode = EBUSD_TO_HA_HVAC.get(str(value), "off")
+        self._attr_hvac_mode = _HA_HVAC_MODE.get(ha_mode, HVACMode.OFF)
+        self._attr_hvac_action = (
+            HVACAction.HEATING
+            if self._attr_hvac_mode == HVACMode.HEAT
+            else HVACAction.COOLING
+            if self._attr_hvac_mode == HVACMode.COOL
+            else HVACAction.IDLE
+            if self._attr_hvac_mode == HVACMode.AUTO
+            else HVACAction.OFF
+        )
+
+    @callback
+    def _handle_current_temp(self, value: Any) -> None:
+        try:
+            self._attr_current_temperature = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_target_temp(self, value: Any) -> None:
+        try:
+            self._attr_target_temperature = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_target_high(self, value: Any) -> None:
+        try:
+            self._attr_target_temperature_high = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_target_low(self, value: Any) -> None:
+        try:
+            self._attr_target_temperature_low = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_holiday_start(self, value: Any) -> None:
+        self._holiday_start = str(value)
+
+    @callback
+    def _handle_holiday_end(self, value: Any) -> None:
+        self._holiday_end = str(value)
+
+    @callback
+    def _handle_quick_veto_end_date(self, value: Any) -> None:
+        self._quick_veto_end_date = str(value)
+
+    @callback
+    def _handle_quick_veto_end_time(self, value: Any) -> None:
+        self._quick_veto_end_time = str(value)
+
+    @property
+    def preset_mode(self) -> str | None:
+        if not (self._attr_supported_features & ClimateEntityFeature.PRESET_MODE):
+            return None
+        if self._quick_veto_end_date and self._quick_veto_end_time:
+            try:
+                veto_end = datetime.strptime(
+                    f"{self._quick_veto_end_date} {self._quick_veto_end_time}",
+                    f"{_DATE_FMT} {_TIME_FMT}",
+                )
+                if veto_end > datetime.now():
+                    return PRESET_BOOST
+            except ValueError:
+                pass
+        if self._holiday_start and self._holiday_end:
+            try:
+                now = datetime.now().date()
+                start = datetime.strptime(self._holiday_start, _DATE_FMT).date()
+                end = datetime.strptime(self._holiday_end, _DATE_FMT).date()
+                if start <= now <= end:
+                    return PRESET_AWAY
+            except ValueError:
+                pass
+        return PRESET_NONE
+
+    async def _publish(self, topic: str, payload: str) -> None:
+        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
+        await mqtt.async_publish(self.hass, topic, payload)
+
+    async def _cancel_quick_veto(self) -> None:
+        if self._config.quick_veto_duration and self._config.quick_veto_duration.write_topic:
+            await self._publish(self._config.quick_veto_duration.write_topic, "0")
+        if self._config.quick_veto_end_date and self._config.quick_veto_end_date.write_topic:
+            await self._publish(
+                self._config.quick_veto_end_date.write_topic, _QUICK_VETO_CANCEL_DATE
+            )
+        if self._config.quick_veto_end_time and self._config.quick_veto_end_time.write_topic:
+            await self._publish(
+                self._config.quick_veto_end_time.write_topic, _QUICK_VETO_CANCEL_TIME
+            )
+
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        current = self.preset_mode
+        if current == PRESET_BOOST and preset_mode != PRESET_BOOST:
+            await self._cancel_quick_veto()
+        if preset_mode == PRESET_AWAY and current != PRESET_AWAY:
+            today = datetime.now().date()
+            start_str = today.strftime(_DATE_FMT)
+            end_str = (today + timedelta(days=7)).strftime(_DATE_FMT)
+            if self._config.holiday_start and self._config.holiday_start.write_topic:
+                await self._publish(self._config.holiday_start.write_topic, start_str)
+            if self._config.holiday_end and self._config.holiday_end.write_topic:
+                await self._publish(self._config.holiday_end.write_topic, end_str)
+        elif preset_mode != PRESET_AWAY and current == PRESET_AWAY:
+            if self._config.holiday_start and self._config.holiday_start.write_topic:
+                await self._publish(self._config.holiday_start.write_topic, _HOLIDAY_RESET)
+            if self._config.holiday_end and self._config.holiday_end.write_topic:
+                await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        ebusd_mode = HA_TO_EBUSD_HVAC.get(hvac_mode.value, "auto")
+        cfg = self._config.mode
+        if cfg.write_topic is None:
+            return
+        if cfg.write_key:
+            payload = json.dumps({cfg.write_key: ebusd_mode})
+        else:
+            payload = ebusd_mode
+        await self._publish(cfg.write_topic, payload)
+
+    async def _publish_quick_veto(self, temp: float) -> None:
+        qv = self._config.quick_veto_temp
+        if qv and qv.write_topic:
+            await self._publish(qv.write_topic, str(temp))
+        qd = self._config.quick_veto_duration
+        if qd and qd.write_topic:
+            await self._publish(qd.write_topic, "3")
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        if ATTR_TEMPERATURE in kwargs and self._config.target_temperature:
+            await self._publish_quick_veto(kwargs[ATTR_TEMPERATURE])
+
+        high = kwargs.get("target_temp_high")
+        low = kwargs.get("target_temp_low")
+        if high is not None and self._config.target_temperature_high:
+            cfg = self._config.target_temperature_high
+            if cfg.write_topic:
+                await self._publish(cfg.write_topic, str(high))
+        if low is not None and self._config.target_temperature_low:
+            await self._publish_quick_veto(low)
+
+    async def async_turn_on(self) -> None:
+        await self.async_set_hvac_mode(HVACMode.AUTO)
+
+    async def async_turn_off(self) -> None:
+        await self.async_set_hvac_mode(HVACMode.OFF)

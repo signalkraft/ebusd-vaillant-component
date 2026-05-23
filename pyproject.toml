@@ -1,0 +1,31 @@
+[project]
+name = "ebusd-vaillant"
+version = "0.1.0"
+description = "Home Assistant climate controls for Vaillant devices over ebusd"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "paho-mqtt>=2.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-homeassistant-custom-component",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+unfixable = ["F401"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.4",
+]

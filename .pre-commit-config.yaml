@@ -1,0 +1,35 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-version-sync
+        name: Check version sync (pyproject.toml ↔ manifest.json)
+        entry: python scripts/check_version_sync.py
+        language: system
+        files: ^(pyproject\.toml|custom_components/ebusd_vaillant/manifest\.json)$
+        pass_filenames: false
+
+      - id: check-dashes
+        name: Check for en/em dashes
+        entry: python scripts/check_dashes.py
+        language: system
+        types: [text]
+        exclude: \.(gitignore|lock|tar\.gz|png)$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        exclude: uv\.lock
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

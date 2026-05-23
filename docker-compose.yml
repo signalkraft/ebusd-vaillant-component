@@ -1,0 +1,14 @@
+services:
+    homeassistant:
+        ports:
+            - "8123:8123"
+        container_name: homeassistant
+        image: "homeassistant/home-assistant:stable"
+        env_file:
+            - ./docker/.env
+        volumes:
+            - ./docker/entrypoint.sh:/init-custom
+            - ./docker/config.tar.gz:/tmp/config.tar.gz
+            - ./custom_components/ebusd_vaillant:/tmp/ebusd_vaillant
+            - /etc/localtime:/etc/localtime:ro
+        entrypoint: [ "/init-custom" ]

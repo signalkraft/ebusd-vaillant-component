@@ -1,0 +1,39 @@
+services:
+    homeassistant:
+        image: homeassistant/home-assistant:stable
+        restart: unless-stopped
+    mosquitto:
+        image: eclipse-mosquitto
+        restart: unless-stopped
+        ports:
+            - 1883:1883
+            - 9001:9001
+    ebusd:
+        image: john30/ebusd
+        restart: unless-stopped
+        ports:
+            - 8888:8888
+        environment:
+            EBUSD_DEVICE: "ens:192.168.1.10:9999"
+            EBUSD_NODEVICECHECK: ""
+            # Pick CSV config files matching initial scan.
+            # - empty for broadcast ident message (default when EBUSD_CONFIGPATH is not given),
+            # - "none" for no initial scan message,
+            # - "full" for full scan,
+            # - a single hex address to scan, or
+            # - "off" for not picking CSV files by scan result (default when EBUSD_CONFIGPATH is given).
+            EBUSD_SCANCONFIG: ""
+            # Connect to MQTT broker on HOST
+            EBUSD_MQTTHOST: "mosquitto"
+            # Connect to MQTT broker on PORT (usually 1883), 0 to disable
+            EBUSD_MQTTPORT: 1883
+            # Set client ID for connection to MQTT broker
+            EBUSD_MQTTCLIENTID: "ebusd"
+            # Use MQTT TOPIC (prefix before /%circuit/%name or complete format)
+            EBUSD_MQTTTOPIC: "ebusd"
+            # Read MQTT integration settings from FILE (no default)
+            EBUSD_MQTTINT: "/etc/ebusd/mqtt-hassio.cfg"
+            # Publish in JSON format instead of strings, optionally in short (value directly below field key)
+            EBUSD_MQTTJSON: ""
+        depends_on:
+            - mosquitto

@@ -1,0 +1,8 @@
+.md-header .md-logo img {
+  transform: scale(1.5);
+  image-rendering: auto;
+}
+.md-header .md-logo {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
