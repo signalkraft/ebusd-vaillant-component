@@ -5,6 +5,8 @@
 Home Assistant custom component for Vaillant heating and hot water systems
 controlled over [ebusd](https://github.com/eBUS/eBUSd) via MQTT.
 
+[Read the full documentation](https://signalkraft.com/ebusd-vaillant-component/).
+
 ## Features
 
 - **Auto-discovery**  -  no manual entity configuration; entities appear as ebusd publishes topics
@@ -24,7 +26,7 @@ controlled over [ebusd](https://github.com/eBUS/eBUSd) via MQTT.
    ([HACS custom repositories docs](https://hacs.xyz/docs/faq/custom_repositories/))
 2. Add the repository URL: `https://github.com/signalkraft/ebusd-vaillant-component`
    with category **Integration**
-3. Click **Install** on the ebusd Vaillant integration
+3. Search for the `ebusd Vaillant` integration and **download** it
 4. Restart Home Assistant
 5. Add the integration through
    **Settings → Devices & services → Add integration
