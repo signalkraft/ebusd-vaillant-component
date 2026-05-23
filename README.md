@@ -3,7 +3,7 @@
 [![Build & Test](https://github.com/signalkraft/ebusd-vaillant-component/actions/workflows/build-test.yaml/badge.svg)](https://github.com/signalkraft/ebusd-vaillant-component/actions/workflows/build-test.yaml)
 
 Home Assistant custom component for Vaillant heating and hot water systems
-controlled over [ebusd](https://github.com/eBUS/eBUSd) via MQTT.
+controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 
 [Read the full documentation](https://signalkraft.com/ebusd-vaillant-component/).
 
@@ -17,7 +17,10 @@ controlled over [ebusd](https://github.com/eBUS/eBUSd) via MQTT.
 
 ## Requirements
 
-- An [ebusd](https://github.com/eBUS/eBUSd) instance publishing Vaillant messages to MQTT
+![](docs/assets/ebus-hardware.svg)
+
+- eBUS hardware adapter, such as the [C6 stick](https://adapter.ebusd.eu/v5-c6/stick.en.html)
+- An [ebusd](https://github.com/john30/ebusd) instance publishing Vaillant messages to MQTT, see [ebus setup](https://signalkraft.com/ebusd-vaillant-component/ebusd/)
 - Home Assistant with the [MQTT integration](https://www.home-assistant.io/integrations/mqtt/) configured
 
 ## Installation (HACS)

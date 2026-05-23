@@ -94,5 +94,5 @@ If eBUS signal is not acquired, check the physical connection of the adapter to 
 
 ### Home Assistant Entities
 
-If the ebusd Vaillant integration shows no entities, [check the Home Assistant logs](https://my.home-assistant.io/redirect/logs/?provider=ebusd_vaillant).
+If the ebusd Vaillant integration shows no entities, [check the Home Assistant logs](https://my.home-assistant.io/redirect/logs/).
 Then [dump ebusd MQTT data](data-capture.md) and add both logs & the data dump [to a new ticket](https://github.com/signalkraft/ebusd-vaillant-component/issues/new).
