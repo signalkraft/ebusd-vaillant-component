@@ -1,7 +1,7 @@
 [project]
 site_name = "ebusd Vaillant"
 site_description = "Home Assistant custom component for Vaillant heating devices over ebusd MQTT"
-repo_url = "https://github.com/signalkraft/ebusd-vaillant"
+repo_url = "https://github.com/signalkraft/ebusd-vaillant-component"
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
