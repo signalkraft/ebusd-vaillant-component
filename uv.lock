@@ -1073,9 +1073,6 @@ wheels = [
 name = "ebusd-vaillant"
 version = "0.6.0"
 source = { virtual = "." }
-dependencies = [
-    { name = "paho-mqtt" },
-]
 
 [package.optional-dependencies]
 test = [
@@ -1092,7 +1089,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "paho-mqtt", specifier = ">=2.1.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
     { name = "pytest-homeassistant-custom-component", marker = "extra == 'test'" },
 ]
