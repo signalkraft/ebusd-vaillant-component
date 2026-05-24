@@ -1,0 +1,138 @@
+ebusd/global:
+    running: true
+    signal: true
+    scan: finished
+    uptime: 1328126
+ebusd/hmu:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 1
+        disablehwcload: 1
+        remoteControlHcPump: 0
+        releaseBackup: 0
+        releaseCooling: 0
+    State01:
+        "0":
+            name: temp1
+            value: 20
+        "1":
+            name: temp1
+            value: 20
+        "2":
+            name: temp2
+            value: null
+        "3":
+            name: temp1
+            value: null
+        "4":
+            name: temp1
+            value: null
+        "5":
+            name: pumpstate
+            value: "off"
+    State07:
+        power: 0
+        energy: 0
+        disp1ay_b0_heaterenabled: "off"
+        display_b1: "off"
+        display_b2_backupheater: "off"
+        display_b3: "off"
+        display_b4: "off"
+        display_b5_noisereduction: "off"
+        display_b6_dhwecomode: "off"
+        display_b7: "on"
+        DisplayHeaterMain: standby
+        DisplaySystemPressure: 1.7
+        DisplayHeaterBackup: standby
+    CurrentConsumedPowerWatt:
+        powerv: 6.5
+ebusd/vwzio:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 0
+        disablehwcload: 1
+        remoteControlHcPump: 0
+        releaseBackup: 0
+        releaseCooling: 0
+    State01:
+        "0":
+            name: temp1
+            value: 35
+        "1":
+            name: temp1
+            value: null
+        "2":
+            name: temp2
+            value: 18.684
+        "3":
+            name: temp1
+            value: null
+        "4":
+            name: temp1
+            value: null
+        "5":
+            name: pumpstate
+            value: "off"
+ebusd/vr_70:
+    SensorData:
+        S1: 67.69
+        S2: 57.44
+        S3: null
+        S4: null
+        S5: 20.25
+        S6: 31.44
+        ignore: c8 50 00
+    SetActorState:
+        R1: "off"
+        R2: "off"
+        R3: "off"
+        R4: "on"
+        R5: "off"
+        R6: "off"
+        S7: "off"
+ebusd/vwz:
+    unknownMPoll10sB512h:
+        "0":
+            name: ""
+            value: 00 80 00 34 02 11 ff
+ebusd/ctlv2:
+    z1OpModeHeating:
+        opmode2: "off"
+    Hc1ActualFlowTempDesired:
+        tempv: 0
+    xUnknown09:
+        onoff: "on"
+    z1ActualHeatingRoomTempDesired:
+        tempv: 0
+    z1ActualCoolingRoomTempDesired:
+        tempv: 99
+    Hc1PumpStatus:
+        hcpumpstate: "off"
+    z1HeatingRoomTempDesiredManualControlled:
+        tempv: 20
+    xUnknown48:
+        "0":
+            name: ""
+            value: 0
+    PrEnergySumHwc:
+        energy4: 3495
+    xUnknownDA:
+        date: 01.01.2019
+    xUnknownDB:
+        date: 01.01.2019
+    HwcStatus:
+        zoneStatus: auto
+    z1Status:
+        zoneStatus: auto
+    silentTimer.Config:
+        "0":
+            name: ""
+            value: 00 0c 0a 00 00 00 ff ff 00

@@ -160,6 +160,35 @@ def _resolve_key(msgs: dict[str, Any], role: str, **fmt_kwargs: Any) -> str | No
     return None
 
 
+def _find_nested(
+    msgs: dict[str, Any], role: str, **fmt_kwargs: Any
+) -> tuple[str | None, str | None]:
+    """Resolve a role to a (msg_key, field_path) pair, searching inside
+    multi-field messages when no top-level key matches.
+
+    Tries top-level key match first via _resolve_key.  If that fails,
+    iterates through all multi-field messages and checks their sub-keys.
+    Returns (None, None) when nothing matches.
+    """
+    top_key = _resolve_key(msgs, role, **fmt_kwargs)
+    if top_key is not None:
+        return top_key, _infer_field(msgs[top_key])
+
+    patterns = _ROLE_PATTERNS[role]
+    for msg_name, payload in msgs.items():
+        if not isinstance(payload, dict):
+            continue
+        for pat in patterns:
+            sub_key_lookup = pat.format(**fmt_kwargs)
+            if sub_key_lookup in payload:
+                return msg_name, f"{sub_key_lookup}.value"
+            low_payload = {k.lower(): k for k in payload}
+            if sub_key_lookup.lower() in low_payload:
+                actual_key = low_payload[sub_key_lookup.lower()]
+                return msg_name, f"{actual_key}.value"
+    return None, None
+
+
 def _topic_config(
     prefix: str,
     device: str,
@@ -183,14 +212,15 @@ def _analyze(
 
     for device_id, msgs in by_device.items():
         # --- Water pressure sensor ---
-        if key := _resolve_key(msgs, "pressure"):
+        pressure_key, pressure_field = _find_nested(msgs, "pressure")
+        if pressure_key:
             entities.append(
                 DiscoveredPressureSensor(
                     device_id=device_id,
                     key=f"{device_id}_pressure",
                     name=f"{display_name} Water Pressure",
                     topic=_topic_config(
-                        prefix, device_id, key, _infer_field(msgs[key]), writable=False
+                        prefix, device_id, pressure_key, pressure_field, writable=False
                     ),
                 )
             )
