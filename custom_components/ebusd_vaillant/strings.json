@@ -30,5 +30,20 @@
     "abort": {
       "already_configured": "This ebusd prefix is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure ebusd Vaillant",
+        "data": {
+          "away_mode_duration": "Default away mode duration (days)",
+          "quick_veto_duration": "Default quick veto duration (hours)"
+        },
+        "data_description": {
+          "away_mode_duration": "Number of days the away mode lasts when activated (default: 7)",
+          "quick_veto_duration": "Number of hours the quick veto lasts when triggered (default: 3)"
+        }
+      }
+    }
   }
 }

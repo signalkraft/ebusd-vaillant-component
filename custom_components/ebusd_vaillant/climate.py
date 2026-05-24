@@ -22,7 +22,15 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, EBUSD_TO_HA_HVAC, HA_TO_EBUSD_HVAC
+from .const import (
+    CONF_AWAY_MODE_DURATION,
+    CONF_QUICK_VETO_DURATION,
+    DEFAULT_AWAY_MODE_DURATION,
+    DEFAULT_QUICK_VETO_DURATION,
+    DOMAIN,
+    EBUSD_TO_HA_HVAC,
+    HA_TO_EBUSD_HVAC,
+)
 from .coordinator import EbusdCoordinator
 from .discovery import DiscoveredClimate, TopicConfig, _get
 
@@ -49,6 +57,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities_by_name: dict[str, EbusdClimateEntity] = {}
+    away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
+    quick_veto_duration = entry.options.get(CONF_QUICK_VETO_DURATION, DEFAULT_QUICK_VETO_DURATION)
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -58,7 +68,7 @@ async def async_setup_entry(
             if e.name in entities_by_name:
                 hass.async_create_task(entities_by_name[e.name].async_update_config(e, coordinator))
             else:
-                entity = EbusdClimateEntity(hass, e)
+                entity = EbusdClimateEntity(hass, e, away_duration, quick_veto_duration)
                 entities_by_name[e.name] = entity
                 new.append(entity)
         if new:
@@ -73,9 +83,17 @@ class EbusdClimateEntity(ClimateEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, hass: HomeAssistant, config: DiscoveredClimate) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: DiscoveredClimate,
+        away_duration: int = DEFAULT_AWAY_MODE_DURATION,
+        quick_veto_duration: int = DEFAULT_QUICK_VETO_DURATION,
+    ) -> None:
         self.hass = hass
         self._config = config
+        self._away_duration = away_duration
+        self._quick_veto_duration = quick_veto_duration
         self._attr_name = config.name
         self._attr_unique_id = f"ebusd_climate_{config.key}"
         self._attr_min_temp = config.min_temp
@@ -282,7 +300,7 @@ class EbusdClimateEntity(ClimateEntity):
         if preset_mode == PRESET_AWAY and current != PRESET_AWAY:
             today = datetime.now().date()
             start_str = today.strftime(_DATE_FMT)
-            end_str = (today + timedelta(days=7)).strftime(_DATE_FMT)
+            end_str = (today + timedelta(days=self._away_duration)).strftime(_DATE_FMT)
             if self._config.holiday_start and self._config.holiday_start.write_topic:
                 await self._publish(self._config.holiday_start.write_topic, start_str)
             if self._config.holiday_end and self._config.holiday_end.write_topic:
@@ -310,7 +328,7 @@ class EbusdClimateEntity(ClimateEntity):
             await self._publish(qv.write_topic, str(temp))
         qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
-            await self._publish(qd.write_topic, "3")
+            await self._publish(qd.write_topic, str(self._quick_veto_duration))
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         if ATTR_TEMPERATURE in kwargs and self._config.target_temperature:
