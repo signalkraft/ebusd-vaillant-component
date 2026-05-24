@@ -32,6 +32,8 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressur
             e.target_temperature is not None,
             e.target_temperature_high is not None,
             e.target_temperature_low is not None,
+            e.holiday_start_time is not None,
+            e.holiday_end_time is not None,
         )
     return (e.name,)
 

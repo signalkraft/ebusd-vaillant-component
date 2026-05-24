@@ -8,7 +8,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_mqtt_message,
 )
 
-from custom_components.ebusd_vaillant.const import DOMAIN
+from custom_components.ebusd_vaillant.const import CONF_AWAY_MODE_DURATION, DOMAIN
 
 MQTT_PREFIX = "ebusd"
 DEVICE = "ctlv2"
@@ -149,3 +149,47 @@ async def test_turn_off_publishes_reset_dates(hass, setup_entry, mqtt_client_moc
     published = _published(mqtt_client_mock)
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.01.2015"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "01.01.2015"
+
+
+# ---------------------------------------------------------------------------
+# Configuration options affect away mode duration
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def setup_custom_entry(hass, mqtt_mock):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"mqtt_prefix": MQTT_PREFIX},
+        options={CONF_AWAY_MODE_DURATION: 14},
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    yield entry
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_turn_on_default_duration(hass, setup_entry, mqtt_client_mock, freezer):
+    """Default away_mode_duration=7 publishes today+7 as the end date."""
+    freezer.move_to("2026-06-01")
+    await _fire(hass)
+    entity_id = _switch(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "08.06.2026"
+
+
+async def test_turn_on_custom_duration(hass, setup_custom_entry, mqtt_client_mock, freezer):
+    """Custom away_mode_duration=14 publishes today+14 as the end date."""
+    freezer.move_to("2026-06-01")
+    await _fire(hass)
+    entity_id = _switch(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "15.06.2026"

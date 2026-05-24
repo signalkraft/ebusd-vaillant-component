@@ -9,7 +9,11 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_mqtt_message,
 )
 
-from custom_components.ebusd_vaillant.const import DOMAIN
+from custom_components.ebusd_vaillant.const import (
+    CONF_AWAY_MODE_DURATION,
+    CONF_QUICK_VETO_DURATION,
+    DOMAIN,
+)
 
 MQTT_PREFIX = "ebusd"
 DEVICE = "ctlv2"
@@ -387,8 +391,72 @@ async def test_holiday_preset_away(hass, setup_entry):
 
 
 # ---------------------------------------------------------------------------
-# Quick veto  -  setting lower (or single) temperature always triggers quick veto
+# Configuration options affect preset durations
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def setup_custom_entry(hass, mqtt_mock):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"mqtt_prefix": MQTT_PREFIX},
+        options={CONF_AWAY_MODE_DURATION: 14, CONF_QUICK_VETO_DURATION: 6},
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    yield entry
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_preset_away_default_duration(hass, setup_entry, mqtt_client_mock, freezer):
+    """Default away_mode_duration=7 publishes today+7 as the end date."""
+    freezer.move_to("2026-06-01")
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_preset_mode",
+        {"entity_id": entity_id, "preset_mode": PRESET_AWAY},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "08.06.2026"
+
+
+async def test_preset_away_custom_duration(hass, setup_custom_entry, mqtt_client_mock, freezer):
+    """Custom away_mode_duration=14 publishes today+14 as the end date."""
+    freezer.move_to("2026-06-01")
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_preset_mode",
+        {"entity_id": entity_id, "preset_mode": PRESET_AWAY},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "15.06.2026"
+
+
+async def test_quick_veto_custom_duration(hass, setup_custom_entry, mqtt_client_mock):
+    """Custom quick_veto_duration=6 publishes 6 hours instead of default 3."""
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": entity_id, "target_temp_high": 22.0, "target_temp_low": 20.0},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoDuration/set") == "6"
 
 
 async def test_set_low_temp_publishes_quick_veto(hass, setup_entry, mqtt_client_mock):

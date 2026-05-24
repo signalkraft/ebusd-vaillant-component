@@ -31,6 +31,8 @@ class DiscoveredClimate:
     target_temperature_low: TopicConfig | None = None
     holiday_start: TopicConfig | None = None
     holiday_end: TopicConfig | None = None
+    holiday_start_time: TopicConfig | None = None
+    holiday_end_time: TopicConfig | None = None
     quick_veto_temp: TopicConfig | None = None
     quick_veto_duration: TopicConfig | None = None
     quick_veto_end_date: TopicConfig | None = None
@@ -138,6 +140,8 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "zone_quick_veto_duration": ["Z{n}QuickVetoDuration"],
     "zone_quick_veto_end_date": ["Z{n}QuickVetoEndDate"],
     "zone_quick_veto_end_time": ["Z{n}QuickVetoEndTime"],
+    "zone_holiday_start_time": ["z{n}HolidayStartTime", "Z{n}HolidayStartTime"],
+    "zone_holiday_end_time": ["z{n}HolidayEndTime", "Z{n}HolidayEndTime"],
 }
 
 
@@ -300,6 +304,22 @@ def _analyze(
             holiday_start = _topic_config(prefix, device_id, h_start_key, "value.value")
             h_end_key = _resolve_key(msgs, "zone_holiday_end", n=zone) or f"Z{zone}HolidayEndPeriod"
             holiday_end = _topic_config(prefix, device_id, h_end_key, "value.value")
+            h_start_time_key, h_start_time_field = _find_nested(
+                msgs, "zone_holiday_start_time", n=zone
+            )
+            holiday_start_time = (
+                _topic_config(
+                    prefix, device_id, h_start_time_key, h_start_time_field, writable=False
+                )
+                if h_start_time_key
+                else None
+            )
+            h_end_time_key, h_end_time_field = _find_nested(msgs, "zone_holiday_end_time", n=zone)
+            holiday_end_time = (
+                _topic_config(prefix, device_id, h_end_time_key, h_end_time_field, writable=False)
+                if h_end_time_key
+                else None
+            )
 
             qv_temp_key = (
                 _resolve_key(msgs, "zone_quick_veto_temp", n=zone) or f"Z{zone}QuickVetoTemp"
@@ -332,6 +352,8 @@ def _analyze(
                     target_temperature_low=t_low,
                     holiday_start=holiday_start,
                     holiday_end=holiday_end,
+                    holiday_start_time=holiday_start_time,
+                    holiday_end_time=holiday_end_time,
                     quick_veto_temp=quick_veto_temp,
                     quick_veto_duration=quick_veto_duration,
                     quick_veto_end_date=quick_veto_end_date,
