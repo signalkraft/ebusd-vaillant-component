@@ -7,6 +7,8 @@ from custom_components.ebusd_vaillant.discovery import (
     DiscoveredPressureSensor,
     DiscoveredWaterHeater,
     _analyze,
+    _infer_field,
+    _resolve_key,
 )
 from tests.conftest import DATA_DIR, load_data_file
 
@@ -60,6 +62,198 @@ def test_water_heater_required_topics_set(data_file):
         if isinstance(entity, DiscoveredWaterHeater):
             assert entity.mode.read_topic
             assert entity.target_temperature.read_topic
+
+
+# ---------------------------------------------------------------------------
+# _infer_field
+# ---------------------------------------------------------------------------
+
+
+def test_infer_field_format1_scalar():
+    """Format 1: {"value": {"value": X}} → "value.value"."""
+    assert _infer_field({"value": {"value": "auto"}}) == "value.value"
+    assert _infer_field({"value": {"value": 20.0}}) == "value.value"
+    assert _infer_field({"value": {"value": None}}) == "value.value"
+
+
+def test_infer_field_format2_named():
+    """Format 2: {"fieldname": {"value": X}} → "fieldname.value"."""
+    assert _infer_field({"opmode2": {"value": "time controlled"}}) == "opmode2.value"
+    assert _infer_field({"tempv": {"value": 50}}) == "tempv.value"
+    assert _infer_field({"pressv": {"value": 1.7}}) == "pressv.value"
+
+
+def test_infer_field_non_dict():
+    assert _infer_field(None) == "value.value"
+    assert _infer_field("scalar") == "value.value"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_key
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_key_exact_match():
+    msgs = {"Z1OpMode": {}, "HwcOpMode": {}}
+    assert _resolve_key(msgs, "zone_op_mode", n=1) == "Z1OpMode"
+    assert _resolve_key(msgs, "hwc_op_mode") == "HwcOpMode"
+
+
+def test_resolve_key_case_insensitive():
+    msgs = {"z1RoomTemp": {"tempv": {"value": 25.35}}}
+    assert _resolve_key(msgs, "zone_room_temp", n=1) == "z1RoomTemp"
+
+
+def test_resolve_key_alias_opmode_heating():
+    msgs = {"z1OpModeHeating": {"opmode2": {"value": "off"}}}
+    assert _resolve_key(msgs, "zone_op_mode", n=1) == "z1OpModeHeating"
+
+
+def test_resolve_key_alias_opmode_cooling():
+    msgs = {"z1OpModeCooling": {"opmode2": {"value": "off"}}}
+    assert _resolve_key(msgs, "zone_op_mode", n=1) == "z1OpModeCooling"
+
+
+def test_resolve_key_alias_night_temp():
+    msgs = {"z1SetBackTemp": {"tempv": {"value": 21}}}
+    assert _resolve_key(msgs, "zone_night_temp", n=1) == "z1SetBackTemp"
+
+
+def test_resolve_key_alias_heating_day_temp():
+    msgs = {"z1HeatingRoomTempDesiredManualControlled": {"tempv": {"value": 20}}}
+    assert _resolve_key(msgs, "zone_day_temp", n=1) == "z1HeatingRoomTempDesiredManualControlled"
+
+
+def test_resolve_key_missing_role():
+    msgs = {"OtherThing": {"value": {"value": 1}}}
+    assert _resolve_key(msgs, "hwc_op_mode") is None
+    assert _resolve_key(msgs, "zone_op_mode", n=2) is None
+
+
+def test_resolve_key_hwc_current_temp_preference():
+    """HwcStorageTemp is preferred over HwcStorageTempBottom/Top."""
+    msgs = {"HwcStorageTempBottom": {}, "HwcStorageTemp": {}}
+    assert _resolve_key(msgs, "hwc_current_temp") == "HwcStorageTemp"
+
+
+def test_resolve_key_hwc_current_temp_fallback():
+    msgs = {"HwcStorageTempTop": {}}
+    assert _resolve_key(msgs, "hwc_current_temp") == "HwcStorageTempTop"
+
+
+def test_resolve_key_hwc_opmode_uppercase_variant():
+    msgs = {"HwcOPMode": {"hwcmode7": {"value": "auto"}}}
+    assert _resolve_key(msgs, "hwc_op_mode") == "HwcOPMode"
+
+
+def test_resolve_key_hwc_current_temp_displayed():
+    msgs = {"DisplayedHwcStorageTemp": {"temp1": {"value": 50}}}
+    assert _resolve_key(msgs, "hwc_current_temp") == "DisplayedHwcStorageTemp"
+
+
+def test_resolve_key_z_manual_temp_as_day_temp():
+    """Z{n}ManualTemp is the ctlv2 equivalent of Z{n}DayTemp."""
+    msgs = {"Z1ManualTemp": {"tempv": {"value": 21}}}
+    assert _resolve_key(msgs, "zone_day_temp", n=1) == "Z1ManualTemp"
+
+
+def test_resolve_key_z_cooling_temp_desired():
+    """Z{n}CoolingTempDesired is the ctlv2 cooling target."""
+    msgs = {"Z1CoolingTempDesired": {"tempv": {"value": 18}}}
+    assert _resolve_key(msgs, "zone_cooling_temp", n=1) == "Z1CoolingTempDesired"
+
+
+def test_resolve_key_z_cooling_manual_temp():
+    """Z{n}CoolingManualTemp is the ctlv2 cooling manual setpoint."""
+    msgs = {"Z1CoolingManualTemp": {"tempv": {"value": 22}}}
+    assert _resolve_key(msgs, "zone_cooling_temp", n=1) == "Z1CoolingManualTemp"
+
+
+def test_resolve_key_pressure_variants():
+    msgs = {"WaterPressure": {"pressv": {"value": 1.7}}}
+    assert _resolve_key(msgs, "pressure") == "WaterPressure"
+    msgs2 = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
+    assert _resolve_key(msgs2, "pressure") == "DisplaySystemPressure"
+
+
+# ---------------------------------------------------------------------------
+# Format 2 (named-field payloads, lowercase/variant key names)
+# ---------------------------------------------------------------------------
+
+
+def test_format2_water_heater_discovered():
+    """Named-field payloads should still discover a water heater."""
+    by_device = {
+        "dev": {
+            "HwcOpMode": {"opmode2": {"value": "time controlled"}},
+            "HwcTempDesired": {"tempv": {"value": 50}},
+            "HwcStorageTemp": {"tempv": {"value": 67.75}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
+    assert wh.mode.read_topic == "ebusd/dev/HwcOpMode"
+    assert wh.mode.field == "opmode2.value"
+    assert wh.target_temperature.read_topic == "ebusd/dev/HwcTempDesired"
+    assert wh.target_temperature.field == "tempv.value"
+    assert wh.current_temperature is not None
+    assert wh.current_temperature.read_topic == "ebusd/dev/HwcStorageTemp"
+    assert wh.current_temperature.field == "tempv.value"
+
+
+def test_format2_water_heater_no_storage_temp():
+    """Water heater discovered with fallback current temp topic when no storage key exists."""
+    by_device = {
+        "dev": {
+            "HwcOpMode": {"opmode2": {"value": "auto"}},
+            "HwcTempDesired": {"tempv": {"value": 55}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
+    assert wh.current_temperature is not None
+    # Falls back to "HwcStorageTemp" with "value.value" field path
+    assert wh.current_temperature.read_topic == "ebusd/dev/HwcStorageTemp"
+    assert wh.current_temperature.field == "value.value"
+
+
+def test_format2_lowercase_z_climate_discovered():
+    """Climate zone discovered with lowercase z prefix and aliased opmode key."""
+    by_device = {
+        "dev": {
+            "z1OpModeHeating": {"opmode2": {"value": "auto"}},
+            "z1RoomTemp": {"tempv": {"value": 21.5}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.name == "Vaillant Zone 1"
+    assert z1.mode.read_topic == "ebusd/dev/z1OpModeHeating"
+    assert z1.mode.field == "opmode2.value"
+    assert z1.current_temperature.read_topic == "ebusd/dev/z1RoomTemp"
+    assert z1.current_temperature.field == "tempv.value"
+
+
+def test_format2_lowercase_z_with_targets():
+    """Climate zone with lowercase z + HeatingRoomTempDesired + SetBackTemp targets."""
+    by_device = {
+        "dev": {
+            "z1OpModeHeating": {"opmode2": {"value": "auto"}},
+            "z1RoomTemp": {"tempv": {"value": 21.5}},
+            "z1HeatingRoomTempDesiredManualControlled": {"tempv": {"value": 20}},
+            "z1SetBackTemp": {"tempv": {"value": 21}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.target_temperature is None  # range mode
+    assert z1.target_temperature_high is not None
+    assert (
+        z1.target_temperature_high.read_topic
+        == "ebusd/dev/z1HeatingRoomTempDesiredManualControlled"
+    )
+    assert z1.target_temperature_low is not None
+    assert z1.target_temperature_low.read_topic == "ebusd/dev/z1SetBackTemp"
 
 
 # ---------------------------------------------------------------------------
@@ -284,3 +478,24 @@ def test_storage_temp_fallback_priority():
     entities = _analyze(by_device, "ebusd")
     wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
     assert wh.current_temperature.read_topic == "ebusd/dev/HwcStorageTempBottom"
+
+
+def test_mixed_zone_and_lowercase_zone_dont_conflict():
+    """zone 1 uppercase and lowercase variants on different devices don't interfere."""
+    by_device = {
+        "dev_a": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+        },
+        "dev_b": {
+            "z1OpModeHeating": {"opmode2": {"value": "auto"}},
+            "z1RoomTemp": {"tempv": {"value": 21.0}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 2
+    assert climates[0].device_id == "dev_a"
+    assert climates[1].device_id == "dev_b"
+    assert climates[0].mode.read_topic == "ebusd/dev_a/Z1OpMode"
+    assert climates[1].mode.read_topic == "ebusd/dev_b/z1OpModeHeating"

@@ -1,0 +1,582 @@
+ebusd/hmu:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 1
+        disablehwcload: 1
+        remoteControlHcPump: 0
+        releaseBackup: 0
+        releaseCooling: 0
+    State01:
+        "0":
+            name: temp1
+            value: 20
+        "1":
+            name: temp1
+            value: 20
+        "2":
+            name: temp2
+            value: null
+        "3":
+            name: temp1
+            value: null
+        "4":
+            name: temp1
+            value: null
+        "5":
+            name: pumpstate
+            value: "off"
+    State07:
+        power: 0
+        energy: 0
+        disp1ay_b0_heaterenabled: "off"
+        display_b1: "off"
+        display_b2_backupheater: "off"
+        display_b3: "off"
+        display_b4: "off"
+        display_b5_noisereduction: "off"
+        display_b6_dhwecomode: "off"
+        display_b7: "on"
+        DisplayHeaterMain: standby
+        DisplaySystemPressure: 1.7
+        DisplayHeaterBackup: standby
+    unknownMB509h2802:
+        "0":
+            name: ""
+            value: 02 00 09 01 5f 01 00 48 4d 55 30 33
+    unknownMPoll60sB507h:
+        "0":
+            name: ""
+            value: 84 05
+    State00:
+        S00_SupplyTemp: 20.06
+        field2: 17
+        S00_CompressorModulation: 0
+        CompressorState: "off"
+        HeatingState: 0
+        field6: 0
+        Defrost: inactive
+        S00_CompressorPower: 0
+    currenterror:
+        "0":
+            name: error
+            value: null
+        "1":
+            name: error
+            value: null
+        "2":
+            name: error
+            value: null
+        "3":
+            name: error
+            value: null
+        "4":
+            name: error
+            value: null
+    RunDataCurrentConsumedPower:
+        powerv: 6.5
+    RunStatsFan1Hours:
+        "0":
+            name: ""
+            value: 7807
+    Statuscode:
+        scode: Standby
+    CurrentConsumedPowerWatt:
+        powerv: 6.5
+    unknownMB51Ah2634:
+        "0":
+            name: ""
+            value: 26 cf 20 00 c0 02 21 01 00 18 00 06 18 00
+    RunDataStatuscode:
+        scode: Standby
+    RunDataHighPressure:
+        pressv: 6.41392
+    RunDataCompressorSpeed:
+        "0":
+            name: ""
+            value: 0
+    RunStatsHwcHours:
+        "0":
+            name: ""
+            value: 1258
+    CurrentYieldPower:
+        "0":
+            name: ""
+            value: 0
+    CurrentConsumedPower:
+        "0":
+            name: ""
+            value: 0
+    RunDataEEVPositionAbs:
+        "0":
+            name: ""
+            value: 250
+    RunStatsHMUHours:
+        "0":
+            name: ""
+            value: 25971
+ebusd/vwzio:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 0
+        disablehwcload: 0
+        remoteControlHcPump: 0
+        releaseBackup: 0
+        releaseCooling: 0
+    State01:
+        "0":
+            name: temp1
+            value: 35
+        "1":
+            name: temp1
+            value: null
+        "2":
+            name: temp2
+            value: 18.734
+        "3":
+            name: temp1
+            value: null
+        "4":
+            name: temp1
+            value: null
+        "5":
+            name: pumpstate
+            value: "off"
+    DateTime:
+        dcfstate: nosignal
+        btime: "-:-:-"
+        bdate: "-.-.-"
+        temp2: 18.734
+    currenterror:
+        "0":
+            name: error
+            value: null
+        "1":
+            name: error
+            value: null
+        "2":
+            name: error
+            value: null
+        "3":
+            name: error
+            value: null
+        "4":
+            name: error
+            value: null
+ebusd/vr_70:
+    SensorData:
+        S1: 67.75
+        S2: 57.5
+        S3: null
+        S4: null
+        S5: 19.31
+        S6: 31.38
+        ignore: c8 50 00
+    SetActorState:
+        R1: "off"
+        R2: "off"
+        R3: "off"
+        R4: "on"
+        R5: "off"
+        R6: "off"
+        S7: "off"
+ebusd/vwz:
+    unknownMPoll10sB512h:
+        "0":
+            name: ""
+            value: 00 80 00 34 02 11 ff
+ebusd/ctlv2:
+    HwcStatus:
+        zoneStatus: auto
+    z1Status:
+        zoneStatus: auto
+    CoolingOutsideTempThreshold:
+        tempv: 15
+    DisplayedOutsideTemp:
+        tempv: 18.6836
+    currenterror:
+        "0":
+            name: error
+            value: null
+        "1":
+            name: error
+            value: null
+        "2":
+            name: error
+            value: null
+        "3":
+            name: error
+            value: null
+        "4":
+            name: error
+            value: null
+    z1OpModeHeating:
+        opmode2: "off"
+    Hc1ActualFlowTempDesired:
+        tempv: 0
+    xUnknown09:
+        onoff: "on"
+    z1ActualHeatingRoomTempDesired:
+        tempv: 0
+    z1ActualCoolingRoomTempDesired:
+        tempv: 99
+    Hc1PumpStatus:
+        hcpumpstate: "off"
+    z1HeatingRoomTempDesiredManualControlled:
+        tempv: 20
+    xUnknown48:
+        "0":
+            name: ""
+            value: 0
+    xUnknownDA:
+        date: 01.01.2019
+    xUnknownDB:
+        date: 01.01.2019
+    Hc1DesiredSetbackTemp:
+        tempv: 0
+    Hc1DesiredTemp:
+        tempv: 65
+    Hc1ExcessTemp:
+        calibrationv: 0
+    Hc1ExtHwcOpMode:
+        opmode2: time controlled
+    Hc1ExtHwcTempDesired:
+        tempv: 60
+    Hc1FlowTemp:
+        tempv: 20
+    HwcTempDesired:
+        tempv: 50
+    MultiRelaySetting:
+        mamode: 4
+    xUnknown8F:
+        "0":
+            name: ""
+            value: 0
+    OutsideTempAvg:
+        tempv: 22.3555
+    ContinousHeating:
+        tempv: -26
+    HwcBivalencePoint:
+        tempv: 3
+    HybridManager:
+        "0":
+            name: ""
+            value: Bivalence (Outside temperature based)
+    Hc1HeatCurve:
+        "0":
+            name: ""
+            value: 0.25
+    xUnknown13:
+        "0":
+            name: ""
+            value: 0
+    HwcMaxChargeTime:
+        minutes2: 15
+    AdaptHeatCurve:
+        yesno: "no"
+    HcAlternativePoint:
+        tempv: -21
+    HcBivalencePoint:
+        tempv: -11
+    HcEmergencyTemperature:
+        tempv: 20
+    HwcChargeHysteresis:
+        calibrationv: 6
+    BackupBoiler:
+        backmode2: heating + warm water circuit
+    xUnknown25:
+        "0":
+            name: ""
+            value: 0
+    HwcChargeOffset:
+        calibrationv: 20
+    FM5Config:
+        "0":
+            name: ""
+            value: 3
+    HydraulicScheme:
+        "0":
+            name: ""
+            value: 11
+    Date:
+        date: 24.05.2026
+    Time:
+        "0":
+            name: ""
+            value: "07:26:40"
+    HwcMaxFlowTempDesired:
+        tempv: 80
+    xUnknownEF:
+        "0":
+            name: ""
+            value: 20
+    z1HTimer.TimeSlotsPerWeekday:
+        "0":
+            name: slotCount
+            value: 1
+        "1":
+            name: slotCount
+            value: 1
+        "2":
+            name: slotCount
+            value: 1
+        "3":
+            name: slotCount
+            value: 1
+        "4":
+            name: slotCount
+            value: 1
+        "5":
+            name: slotCount
+            value: 1
+        "6":
+            name: slotCount
+            value: 1
+    z1CTimer.TimeSlotsPerWeekday:
+        "0":
+            name: slotCount
+            value: 0
+        "1":
+            name: slotCount
+            value: 0
+        "2":
+            name: slotCount
+            value: 0
+        "3":
+            name: slotCount
+            value: 0
+        "4":
+            name: slotCount
+            value: 0
+        "5":
+            name: slotCount
+            value: 0
+        "6":
+            name: slotCount
+            value: 0
+    hwcTimer.TimeSlotsPerWeekday:
+        "0":
+            name: slotCount
+            value: 2
+        "1":
+            name: slotCount
+            value: 2
+        "2":
+            name: slotCount
+            value: 2
+        "3":
+            name: slotCount
+            value: 2
+        "4":
+            name: slotCount
+            value: 2
+        "5":
+            name: slotCount
+            value: 2
+        "6":
+            name: slotCount
+            value: 2
+    z1HTimer.Monday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Tuesday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Wednesday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Thursday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Friday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Saturday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    z1HTimer.Sunday:
+        index: 0
+        startTime: "00:00"
+        endTime: "24:00"
+        slotTemp: 20
+    hwcTimer.Monday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    hwcTimer.Tuesday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    z1HolidayStartDate:
+        hfrom: 01.01.2015
+    z1HolidayEndDate:
+        hto: 01.01.2015
+    z1HolidayTemp:
+        tempv: 15
+    HwcHolidayEndDate:
+        hto: 01.01.2015
+    HwcHolidayStartDate:
+        hfrom: 01.01.2015
+    z1SetBackTemp:
+        tempv: 21
+    HwcHolidayStartTime:
+        "0":
+            name: ""
+            value: "00:00:00"
+    HwcHolidayEndTime:
+        "0":
+            name: ""
+            value: "00:00:00"
+    HwcLockTime:
+        minutes2: 60
+    Hc1HeatCurveAdaption:
+        "0":
+            name: ""
+            value: 0
+    z1HolidayEndTime:
+        "0":
+            name: ""
+            value: "00:00:00"
+    z1HolidayStartTime:
+        "0":
+            name: ""
+            value: "00:00:00"
+    ccTimer.TimeSlotsPerWeekday:
+        "0":
+            name: slotCount
+            value: 0
+        "1":
+            name: slotCount
+            value: 0
+        "2":
+            name: slotCount
+            value: 0
+        "3":
+            name: slotCount
+            value: 0
+        "4":
+            name: slotCount
+            value: 0
+        "5":
+            name: slotCount
+            value: 0
+        "6":
+            name: slotCount
+            value: 0
+    hwcTimer.Wednesday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    hwcTimer.Thursday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    hwcTimer.Friday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    hwcTimer.Saturday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    hwcTimer.Sunday:
+        index: 1
+        startTime: "15:30"
+        endTime: "16:50"
+    Hc1CoolingEnabled:
+        onoff: "on"
+    Hc1MinHeatingFlowTempDesired:
+        tempv: 25
+    Hc1MaxHeatingFlowTempDesired:
+        tempv: 35
+    Hc1SummerTempLimit:
+        tempv: 17
+    Hc1RoomTempMod:
+        rcmode2: active
+    Hc1DewPointOffset:
+        tempv: 2
+    Hc1MinCoolingFlowTempDesired:
+        tempv: 20
+    z1CoolingRoomTempDesiredTimeControlled:
+        tempv: 18
+    HwcOpMode:
+        opmode2: time controlled
+    z1OpModeCooling:
+        opmode2: "off"
+    xUnknown04:
+        "0":
+            name: ""
+            value: 0
+    HwcStorageTemp:
+        tempv: 67.75
+    HwcParallelLoading:
+        onoff: "off"
+    z1RoomTemp:
+        tempv: 25.35
+    Hc1MixerPosition:
+        "0":
+            name: ""
+            value: 0
+    z1CoolingRoomTempDesiredManualControlled:
+        tempv: 21
+    z1RoomHumidity:
+        "0":
+            name: ""
+            value: 42
+    z1Unknown2C:
+        "0":
+            name: ""
+            value: "00"
+    WaterPressure:
+        pressv: 1.7
+    GlobalSystemOff:
+        yesno: "no"
+    HwcCylinderOffset:
+        calibrationv: 15
+    xUnknownB6:
+        onoff: "off"
+    Hc1ScreedDryingDesiredTemp:
+        tempv: 0
+    Hc1SetBackMode:
+        offmode2: eco
+    Hc2ActualFlowTempDesired:
+        tempv: 0
+    Hc2DesiredReturnTemp:
+        tempv: 30
+    Hc2DesiredTemp:
+        tempv: 65
+    Hc2ExcessTemp:
+        calibrationv: 0
+    Hc2ExtHwcOpMode:
+        opmode2: time controlled
+    Hc2ExtHwcTempDesired:
+        tempv: 60
+ebusd/broadcast:
+    unknownBCb505h5c:
+        "0":
+            name: ""
+            value: "00"
+    vdatetime:
+        time: "07:27:47"
+        date: 24.05.2026
+    OutsideTemp:
+        temp2: 18.684
