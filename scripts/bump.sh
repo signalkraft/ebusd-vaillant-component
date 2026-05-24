@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <commit message>"
-    exit 1
-fi
-
-commit_msg="$*"
-
 # --- read current version from pyproject.toml ---
 current=$(grep -oP '^version = "\K[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml)
 if [ -z "$current" ]; then
@@ -28,9 +21,13 @@ sed -i 's/^version = "'"${current}"'"/version = "'"${new_ver}"'"/' pyproject.tom
 # --- update manifest.json ---
 sed -i 's/"version": "'"${current}"'"/"version": "'"${new_ver}"'"/' custom_components/ebusd_vaillant/manifest.json
 
-# --- commit and tag ---
-git add pyproject.toml custom_components/ebusd_vaillant/manifest.json
-git commit -m "$commit_msg"
-git tag "v${new_ver}"
+# --- regenerate lockfile ---
+uv lock
 
-echo "Bumped ${current} → ${new_ver}, committed, tagged v${new_ver}"
+# --- amend last commit and tag ---
+git add pyproject.toml custom_components/ebusd_vaillant/manifest.json uv.lock
+git commit --amend --no-edit
+git tag -f "v${new_ver}"
+git push origin "v${new_ver}"
+
+echo "Bumped ${current} → ${new_ver}, amended commit, pushed v${new_ver}"
