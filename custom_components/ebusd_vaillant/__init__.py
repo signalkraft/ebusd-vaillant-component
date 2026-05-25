@@ -11,6 +11,7 @@ import yaml
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_MQTT_PREFIX, CONF_NAME, DEFAULT_MQTT_PREFIX, DEFAULT_NAME, DOMAIN
 from .coordinator import EbusdCoordinator
@@ -44,9 +45,11 @@ def _flatten_payload(payload):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     prefix = entry.data.get(CONF_MQTT_PREFIX, DEFAULT_MQTT_PREFIX)
     display_name = entry.data.get(CONF_NAME, DEFAULT_NAME)
-    coordinator = EbusdCoordinator(hass, prefix, display_name)
+    coordinator = EbusdCoordinator(hass, prefix, display_name, entry)
     await coordinator.async_start()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    entry.async_on_unload(entry.add_update_listener(_async_update_options))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     if not hass.services.has_service(DOMAIN, SERVICE_DUMP_MQTT):
@@ -119,12 +122,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    ent_reg = er.async_get(hass)
+    for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        ent_reg.async_remove(ent.entity_id)
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unloaded:
-        coordinator: EbusdCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
+    coordinator = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if coordinator:
         coordinator.async_stop()
-        if not hass.data.get(DOMAIN):
-            hass.services.async_remove(DOMAIN, SERVICE_DUMP_MQTT)
-            hass.services.async_remove(DOMAIN, SERVICE_RECORD_TOPIC)
+    if not hass.data.get(DOMAIN):
+        hass.services.async_remove(DOMAIN, SERVICE_DUMP_MQTT)
+        hass.services.async_remove(DOMAIN, SERVICE_RECORD_TOPIC)
     return unloaded
