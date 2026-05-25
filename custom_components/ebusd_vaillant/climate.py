@@ -301,14 +301,14 @@ class EbusdClimateEntity(ClimateEntity):
             today = datetime.now().date()
             start_str = today.strftime(_DATE_FMT)
             end_str = (today + timedelta(days=self._away_duration)).strftime(_DATE_FMT)
-            if self._config.holiday_start and self._config.holiday_start.write_topic:
+            if self._config.holiday_start:
                 await self._publish(self._config.holiday_start.write_topic, start_str)
-            if self._config.holiday_end and self._config.holiday_end.write_topic:
+            if self._config.holiday_end:
                 await self._publish(self._config.holiday_end.write_topic, end_str)
         elif preset_mode != PRESET_AWAY and current == PRESET_AWAY:
-            if self._config.holiday_start and self._config.holiday_start.write_topic:
+            if self._config.holiday_start:
                 await self._publish(self._config.holiday_start.write_topic, _HOLIDAY_RESET)
-            if self._config.holiday_end and self._config.holiday_end.write_topic:
+            if self._config.holiday_end:
                 await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:

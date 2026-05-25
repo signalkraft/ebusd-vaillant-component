@@ -134,3 +134,29 @@ async def test_holiday_start_end_updates_on_mqtt(hass, setup_entry):
     await hass.async_block_till_done()
     assert _find_entity(hass, "holiday_start").state == "2026-06-15T00:00:00+00:00"
     assert _find_entity(hass, "holiday_end").state == "2026-06-20T00:00:00+00:00"
+
+
+HWC_HOLIDAY_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcTempDesired": {"value": {"value": 55}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod": {"value": {"value": "01.06.2026"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod": {"value": {"value": "15.06.2026"}},
+}
+
+
+async def hwc_datetime_entities(hass):
+    return [s for s in hass.states.async_all("datetime") if "hot_water" in s.entity_id]
+
+
+async def test_hwc_holiday_datetime_entities_created(hass, setup_entry):
+    """HWC holiday datetime entities are created when HWC holiday data is present."""
+    await _fire(hass, HWC_HOLIDAY_MSGS)
+    entities = await hwc_datetime_entities(hass)
+    assert len(entities) == 2
+
+
+async def test_hwc_holiday_start_end_state(hass, setup_entry):
+    """HWC holiday start/end entities show correct dates."""
+    await _fire(hass, HWC_HOLIDAY_MSGS)
+    assert _find_entity(hass, "hot_water_holiday_start").state == "2026-06-01T00:00:00+00:00"
+    assert _find_entity(hass, "hot_water_holiday_end").state == "2026-06-15T00:00:00+00:00"

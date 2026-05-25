@@ -59,13 +59,22 @@ class DiscoveredWaterHeater:
     target_temperature: TopicConfig
     current_temperature: TopicConfig | None = None
     operation_modes: list[str] = field(default_factory=lambda: ["auto", "day", "off"])
+    holiday_start: TopicConfig | None = None
+    holiday_end: TopicConfig | None = None
+    holiday_start_time: TopicConfig | None = None
+    holiday_end_time: TopicConfig | None = None
     min_temp: float = 40.0
     max_temp: float = 80.0
     temp_step: float = 1.0
 
 
 def _get(payload: Any, dot_path: str) -> Any:
-    """Extract a value from a nested dict using dot-notation path."""
+    """Extract a value from a nested dict using dot-notation path.
+
+    Returns the payload directly when dot_path is empty (scalar value).
+    """
+    if not dot_path:
+        return payload
     obj = payload
     for key in dot_path.split("."):
         if not isinstance(obj, dict):
@@ -77,6 +86,9 @@ def _get(payload: Any, dot_path: str) -> Any:
 def _infer_field(payload: Any) -> str:
     """Derive dot-path from payload structure.
 
+    Format 0 (scalar value):
+        "plain_string"  or  42  →  ""
+
     Format 1 (scalar wrapper):
         {"value": {"value": X}}  →  "value.value"
 
@@ -84,7 +96,7 @@ def _infer_field(payload: Any) -> str:
         {"fieldname": {"value": X}}  →  "fieldname.value"
     """
     if not isinstance(payload, dict):
-        return "value.value"
+        return "value.value" if payload is None else ""
     if "value" in payload:
         return "value.value"
     for key, val in payload.items():
@@ -126,6 +138,8 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
         "z{n}CoolingRoomTempDesiredManualControlled",
     ],
     "zone_night_temp": ["Z{n}NightTemp", "z{n}SetBackTemp"],
+    "zone_circuit_type": ["Hc{n}CircuitType"],
+    "zone_room_zone_mapping": ["Z{n}RoomZoneMapping"],
     "zone_holiday_start": [
         "Z{n}HolidayStartDate",
         "Z{n}HolidayStartPeriod",
@@ -142,6 +156,10 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "zone_quick_veto_end_time": ["Z{n}QuickVetoEndTime"],
     "zone_holiday_start_time": ["z{n}HolidayStartTime", "Z{n}HolidayStartTime"],
     "zone_holiday_end_time": ["z{n}HolidayEndTime", "Z{n}HolidayEndTime"],
+    "hwc_holiday_start": ["HwcHolidayStartPeriod", "HwcHolidayStartDate"],
+    "hwc_holiday_end": ["HwcHolidayEndPeriod", "HwcHolidayEndDate"],
+    "hwc_holiday_start_time": ["HwcHolidayStartTime"],
+    "hwc_holiday_end_time": ["HwcHolidayEndTime"],
 }
 
 
@@ -234,6 +252,10 @@ def _analyze(
         hwc_target_key = _resolve_key(msgs, "hwc_target_temp")
         if hwc_op_key and hwc_target_key:
             hwc_current_key = _resolve_key(msgs, "hwc_current_temp") or "HwcStorageTemp"
+            hwc_h_start_key, hwc_h_start_field = _find_nested(msgs, "hwc_holiday_start")
+            hwc_h_end_key, hwc_h_end_field = _find_nested(msgs, "hwc_holiday_end")
+            hwc_h_st_key, hwc_h_st_field = _find_nested(msgs, "hwc_holiday_start_time")
+            hwc_h_et_key, hwc_h_et_field = _find_nested(msgs, "hwc_holiday_end_time")
             entities.append(
                 DiscoveredWaterHeater(
                     device_id=device_id,
@@ -252,6 +274,32 @@ def _analyze(
                         _infer_field(msgs.get(hwc_current_key)),
                         writable=False,
                     ),
+                    holiday_start=_topic_config(
+                        prefix,
+                        device_id,
+                        hwc_h_start_key or "HwcHolidayStartPeriod",
+                        hwc_h_start_field or "value.value",
+                    ),
+                    holiday_end=_topic_config(
+                        prefix,
+                        device_id,
+                        hwc_h_end_key or "HwcHolidayEndPeriod",
+                        hwc_h_end_field or "value.value",
+                    ),
+                    holiday_start_time=(
+                        _topic_config(
+                            prefix, device_id, hwc_h_st_key, hwc_h_st_field, writable=False
+                        )
+                        if hwc_h_st_key
+                        else None
+                    ),
+                    holiday_end_time=(
+                        _topic_config(
+                            prefix, device_id, hwc_h_et_key, hwc_h_et_field, writable=False
+                        )
+                        if hwc_h_et_key
+                        else None
+                    ),
                 )
             )
 
@@ -264,6 +312,18 @@ def _analyze(
             room_field = _infer_field(msgs.get(room_key))
             if _get(msgs.get(room_key), room_field) is None:
                 continue
+
+            ct_key = _resolve_key(msgs, "zone_circuit_type", n=zone)
+            if ct_key:
+                ct_field = _infer_field(msgs[ct_key])
+                if _get(msgs[ct_key], ct_field) == "inactive":
+                    continue
+
+            zrm_key = _resolve_key(msgs, "zone_room_zone_mapping", n=zone)
+            if zrm_key:
+                zrm_field = _infer_field(msgs[zrm_key])
+                if _get(msgs[zrm_key], zrm_field) == "none":
+                    continue
 
             hvac_modes = ["auto", "heat", "cool", "off"]
 
@@ -298,12 +358,22 @@ def _analyze(
 
             # Holiday & quick-veto topics: resolve first, fall back to canonical name.
             # Always created so write topics are available even before data arrives.
-            h_start_key = (
-                _resolve_key(msgs, "zone_holiday_start", n=zone) or f"Z{zone}HolidayStartPeriod"
+            h_start_key = _resolve_key(msgs, "zone_holiday_start", n=zone)
+            h_start_field = _infer_field(msgs[h_start_key]) if h_start_key else "value.value"
+            holiday_start = _topic_config(
+                prefix,
+                device_id,
+                h_start_key or f"Z{zone}HolidayStartPeriod",
+                h_start_field,
             )
-            holiday_start = _topic_config(prefix, device_id, h_start_key, "value.value")
-            h_end_key = _resolve_key(msgs, "zone_holiday_end", n=zone) or f"Z{zone}HolidayEndPeriod"
-            holiday_end = _topic_config(prefix, device_id, h_end_key, "value.value")
+            h_end_key = _resolve_key(msgs, "zone_holiday_end", n=zone)
+            h_end_field = _infer_field(msgs[h_end_key]) if h_end_key else "value.value"
+            holiday_end = _topic_config(
+                prefix,
+                device_id,
+                h_end_key or f"Z{zone}HolidayEndPeriod",
+                h_end_field,
+            )
             h_start_time_key, h_start_time_field = _find_nested(
                 msgs, "zone_holiday_start_time", n=zone
             )
@@ -321,23 +391,38 @@ def _analyze(
                 else None
             )
 
-            qv_temp_key = (
-                _resolve_key(msgs, "zone_quick_veto_temp", n=zone) or f"Z{zone}QuickVetoTemp"
+            qv_temp_key = _resolve_key(msgs, "zone_quick_veto_temp", n=zone)
+            qv_temp_field = _infer_field(msgs[qv_temp_key]) if qv_temp_key else "value.value"
+            quick_veto_temp = _topic_config(
+                prefix,
+                device_id,
+                qv_temp_key or f"Z{zone}QuickVetoTemp",
+                qv_temp_field,
             )
-            quick_veto_temp = _topic_config(prefix, device_id, qv_temp_key, "value.value")
-            qv_dur_key = (
-                _resolve_key(msgs, "zone_quick_veto_duration", n=zone)
-                or f"Z{zone}QuickVetoDuration"
+            qv_dur_key = _resolve_key(msgs, "zone_quick_veto_duration", n=zone)
+            qv_dur_field = _infer_field(msgs[qv_dur_key]) if qv_dur_key else "value.value"
+            quick_veto_duration = _topic_config(
+                prefix,
+                device_id,
+                qv_dur_key or f"Z{zone}QuickVetoDuration",
+                qv_dur_field,
             )
-            quick_veto_duration = _topic_config(prefix, device_id, qv_dur_key, "value.value")
-            qv_ed_key = (
-                _resolve_key(msgs, "zone_quick_veto_end_date", n=zone) or f"Z{zone}QuickVetoEndDate"
+            qv_ed_key = _resolve_key(msgs, "zone_quick_veto_end_date", n=zone)
+            qv_ed_field = _infer_field(msgs[qv_ed_key]) if qv_ed_key else "value.value"
+            quick_veto_end_date = _topic_config(
+                prefix,
+                device_id,
+                qv_ed_key or f"Z{zone}QuickVetoEndDate",
+                qv_ed_field,
             )
-            quick_veto_end_date = _topic_config(prefix, device_id, qv_ed_key, "value.value")
-            qv_et_key = (
-                _resolve_key(msgs, "zone_quick_veto_end_time", n=zone) or f"Z{zone}QuickVetoEndTime"
+            qv_et_key = _resolve_key(msgs, "zone_quick_veto_end_time", n=zone)
+            qv_et_field = _infer_field(msgs[qv_et_key]) if qv_et_key else "value.value"
+            quick_veto_end_time = _topic_config(
+                prefix,
+                device_id,
+                qv_et_key or f"Z{zone}QuickVetoEndTime",
+                qv_et_field,
             )
-            quick_veto_end_time = _topic_config(prefix, device_id, qv_et_key, "value.value")
 
             entities.append(
                 DiscoveredClimate(

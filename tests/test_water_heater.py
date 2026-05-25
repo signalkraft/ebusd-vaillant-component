@@ -235,3 +235,94 @@ async def test_storage_temp_bottom_fallback(hass, mqtt_mock):
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+HWC_HOLIDAY_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcTempDesired": {"value": {"value": 55}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod": {"value": {"value": "01.01.2020"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod": {"value": {"value": "01.01.2099"}},
+}
+
+
+@pytest.fixture
+async def setup_holiday_entry(hass, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, data={"mqtt_prefix": MQTT_PREFIX})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    yield entry
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def _fire_holiday(hass, msgs: dict = HWC_HOLIDAY_MSGS) -> None:
+    for topic, payload in msgs.items():
+        async_fire_mqtt_message(hass, topic, json.dumps(payload))
+    await hass.async_block_till_done()
+    for topic, payload in msgs.items():
+        async_fire_mqtt_message(hass, topic, json.dumps(payload))
+    await hass.async_block_till_done()
+
+
+async def test_away_mode_always_available(hass, setup_entry):
+    """Away mode feature is always available."""
+    await _fire(hass)
+    features = _water_heater(hass).attributes.get("supported_features", 0)
+    assert features & 4  # AWAY_MODE = 4
+
+
+async def test_away_mode_on_when_within_holiday(hass, setup_holiday_entry):
+    """is_away_mode_on is True when today falls within holiday range."""
+    await _fire_holiday(hass)
+    wh = _water_heater(hass)
+    assert wh.attributes.get("away_mode") == "on"
+
+
+async def test_away_mode_off_when_reset_sentinel(hass, setup_holiday_entry):
+    """is_away_mode_on is False when holiday dates are the reset sentinel (past)."""
+    msgs = {k: v for k, v in HWC_HOLIDAY_MSGS.items()}
+    msgs.update(
+        {
+            f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod": {"value": {"value": "01.01.2015"}},
+            f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod": {"value": {"value": "01.01.2015"}},
+        }
+    )
+    await _fire_holiday(hass, msgs)
+    wh = _water_heater(hass)
+    assert wh.attributes.get("away_mode") == "off"
+
+
+async def test_set_away_mode_on_publishes_holiday_dates(
+    hass, setup_holiday_entry, mqtt_client_mock, freezer
+):
+    """Enabling away mode publishes today+7 as holiday dates."""
+    freezer.move_to("2026-06-01")
+    await _fire_holiday(hass)
+    entity_id = _water_heater(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "water_heater",
+        "set_away_mode",
+        {"entity_id": entity_id, "away_mode": "on"},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "08.06.2026"
+
+
+async def test_set_away_mode_off_publishes_reset(hass, setup_holiday_entry, mqtt_client_mock):
+    """Disabling away mode publishes reset sentinels."""
+    await _fire_holiday(hass)
+    entity_id = _water_heater(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "water_heater",
+        "set_away_mode",
+        {"entity_id": entity_id, "away_mode": "off"},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.01.2015"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "01.01.2015"

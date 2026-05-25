@@ -1,77 +1,48 @@
-ebusd/hmu:
-    Status01:
-        temp: 66
-        temp_1: 62
-        temp_2: null
-        temp_3: null
-        temp_4: null
-        pumpstate: hwc
-    SetMode:
-        hcmode: water
-        flowtempdesired: null
-        hwctempdesired: null
-        hwcflowtempdesired: 160
-        disablehc: 1
-        disablehwctapping: 1
-        disablehwcload: 1
-        remotecontrolhcpump: 1
-        releasebackup: 0
-        releasecooling: 0
-    Currenterror:
-        error: null
-        error_1: null
-        error_2: null
-        error_3: null
-        error_4: null
-    StatusCirPump: "off"
-    YieldHcDay: 0
-    YieldCoolDay: 0
-    YieldHwcDay: 10.4
-    YieldHcMonth: 46
-    YieldHc: 25996
-    YieldHwcMonth: 155.1
-    YieldHwc: 11758
-    SupplyTempWeighted: 72.69
-    FlowTemp: 52.69
-    EnergyIntegral: 0
-    CurrentYieldPower: 5.8
-    CurrentConsumedPower: 1.9
-    YieldCoolingMonth: 0
-    YieldCooling: 60.5
-    TotalEnergyUsage: 13591
-    RunDataStatuscode: hwc_compressor_active
-    RunDataCompressorInletTemp: 12.2803
-    RunDataCompressorOutletTemp: 69.1875
-    RunDataEEVOutletTemp: 16.0345
-    RunDataAirInletTemp: 22.5561
-    RunDataBuildingCPumpPower: 100
-    RunStatsHMUHours: 31851
-    RunStatsHcHours: 4156
-    RunStatsHwcHours: 2775
-    RunStatsCompressorHours: 7025
-    RunStatsCompressorStarts: 5450
-    RunStatsBuildingPumpHours: 8128
-    RunStatsBuildingCPumpStarts: 12114
-    RunStats4PortValveHours: 331
-    RunStatsFan1Hours: 7161
-    RunStatsFan1Starts: 7786
-    RunStatsFan2Hours: 0
-    RunStatsFan2Starts: 0
 ebusd/ctlv2:
-    Z1Timer_Thursday0:
+    HwcTimer_Sunday2:
         htm: "00:00"
-        htm_1: "07:00"
-        slottemp: 21
-    Currenterror:
-        error: null
-        error_1: null
-        error_2: null
-        error_3: null
-        error_4: null
-    Z1Timer_Thursday1:
-        htm: "07:00"
-        htm_1: "20:30"
-        slottemp: 21
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Thursday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
+    Z1CoolingTemp: 22
+    HwcOpMode: auto
+    HwcTempDesired: 55
+    HwcStorageTemp: 23.5
+    HwcParallelLoading: "off"
+    Hc1FlowTemp: 28.5
+    Z1RoomTemp: 23.6625
+    Hc1MixerMovement: 0
+    Hc1HeatCurveAdaption: -0.193856
+    WaterPressure: 2.6
+    DisplayedOutsideTemp: 31.082
+    HwcTimer_Thursday1:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    Z1OpMode: "off"
+    Hc1ActualFlowTempDesired: 0
+    Z1ActualRoomTempDesired: 0
+    Hc1PumpStatus: 0
+    Z1DayTemp: 21
+    HwcTimer_Thursday2:
+        htm: "00:00"
+        htm_1: "00:00"
+        slottemp: null
+    HwcTimer_Timeframes:
+        slotcount: 1
+        slotcount_1: 1
+        slotcount_2: 1
+        slotcount_3: 1
+        slotcount_4: 1
+        slotcount_5: 1
+        slotcount_6: 1
+    HwcTimer_Tuesday0:
+        htm: "05:00"
+        htm_1: "19:30"
+        slottemp: 55
     Z1Timer_Config: 00 0c 0a 05 01 0c 05 1e 00
     HwcTimer_Config: 00 03 0a 0a 01 01 23 46 00
     CcTimer_Config: 00 03 0a 00 00 00 ff ff 00
@@ -85,14 +56,6 @@ ebusd/ctlv2:
         slotcount_4: 3
         slotcount_5: 3
         slotcount_6: 3
-    HwcTimer_Timeframes:
-        slotcount: 1
-        slotcount_1: 1
-        slotcount_2: 1
-        slotcount_3: 1
-        slotcount_4: 1
-        slotcount_5: 1
-        slotcount_6: 1
     CcTimer_Timeframes:
         slotcount: 0
         slotcount_1: 0
@@ -129,6 +92,10 @@ ebusd/ctlv2:
         htm: "07:00"
         htm_1: "20:30"
         slottemp: 21
+    Z1Timer_Thursday1:
+        htm: "07:00"
+        htm_1: "20:30"
+        slottemp: 21
     Z1Timer_Friday1:
         htm: "07:00"
         htm_1: "20:30"
@@ -150,10 +117,6 @@ ebusd/ctlv2:
         htm_1: "00:00"
         slottemp: null
     HwcTimer_Wednesday1:
-        htm: "00:00"
-        htm_1: "00:00"
-        slottemp: null
-    HwcTimer_Thursday1:
         htm: "00:00"
         htm_1: "00:00"
         slottemp: null
@@ -258,6 +221,10 @@ ebusd/ctlv2:
         htm: "00:00"
         htm_1: "07:00"
         slottemp: 21
+    Z1Timer_Thursday0:
+        htm: "00:00"
+        htm_1: "07:00"
+        slottemp: 21
     Z1Timer_Friday0:
         htm: "00:00"
         htm_1: "07:00"
@@ -274,15 +241,7 @@ ebusd/ctlv2:
         htm: "05:00"
         htm_1: "19:30"
         slottemp: 55
-    HwcTimer_Tuesday0:
-        htm: "05:00"
-        htm_1: "19:30"
-        slottemp: 55
     HwcTimer_Wednesday0:
-        htm: "05:00"
-        htm_1: "19:30"
-        slottemp: 55
-    HwcTimer_Thursday0:
         htm: "05:00"
         htm_1: "19:30"
         slottemp: 55
@@ -415,19 +374,11 @@ ebusd/ctlv2:
         htm: "00:00"
         htm_1: "00:00"
         slottemp: null
-    HwcTimer_Thursday2:
-        htm: "00:00"
-        htm_1: "00:00"
-        slottemp: null
     HwcTimer_Friday2:
         htm: "00:00"
         htm_1: "00:00"
         slottemp: null
     HwcTimer_Saturday2:
-        htm: "00:00"
-        htm_1: "00:00"
-        slottemp: null
-    HwcTimer_Sunday2:
         htm: "00:00"
         htm_1: "00:00"
         slottemp: null
@@ -508,26 +459,19 @@ ebusd/ctlv2:
         htm: "00:00"
         htm_1: "00:00"
         slottemp: null
-    Z1CoolingTemp: 22
     Z2CoolingTemp: 24
-    HwcOpMode: auto
-    Z1OpMode: auto
     Z2OpMode: auto
     Z3OpMode: auto
-    Hc1ActualFlowTempDesired: 0
     Hc2ActualFlowTempDesired: 0
     Hc3ActualFlowTempDesired: 0
-    HwcTempDesired: 55
-    HwcStorageTemp: 53
     Z1HolidayTemp: 15
     Z2HolidayTemp: 15
     Z3HolidayTemp: 15
     Hc1ExcessTemp: 0
     Hc2ExcessTemp: 0
     Hc3ExcessTemp: 0
-    HwcFlowTemp: 80
-    Hc1FlowTemp: 65.5
-    Z1QuickVetoTemp: 22
+    HwcFlowTemp: 0
+    Z1QuickVetoTemp: 21.5
     Z2QuickVetoTemp: 21
     Z3QuickVetoTemp: 21
     Z1NightTemp: 18
@@ -543,7 +487,6 @@ ebusd/ctlv2:
     Hc1HeatCurve: 0.956144
     Hc2HeatCurve: 0.6
     Hc3HeatCurve: 0.6
-    Z1RoomTemp: 21.4125
     HwcSFMode: auto
     Hc1MinFlowTempDesired: 32
     Hc2MinFlowTempDesired: 15
@@ -561,7 +504,6 @@ ebusd/ctlv2:
     Hc1SummerTempLimit: 18
     Hc2SummerTempLimit: 21
     Hc3SummerTempLimit: 21
-    Z1ActualRoomTempDesired: 0
     Z2ActualRoomTempDesired: 0
     Z3ActualRoomTempDesired: 0
     Hc1RoomTempSwitchOn: thermostat
@@ -570,26 +512,158 @@ ebusd/ctlv2:
     Hc1Status: 0
     Hc2Status: 0
     Hc3Status: 0
-    Hc1PumpStatus: 0
     Hc2PumpStatus: 0
     Hc3PumpStatus: 0
-    Hc1HeatCurveAdaption: -0.193856
     Hc2HeatCurveAdaption: 0
     Hc3HeatCurveAdaption: 0
-    Z1DayTemp: 21
     Z2DayTemp: 21
     Z3DayTemp: 21
-    YieldTotal: 38356
+    YieldTotal: 38384
     SolarYieldTotal: 0
     HwcMaxFlowTempDesired: 80
-    PrEnergySumHcThisMonth: 19
+    PrEnergySumHcThisMonth: 20
     PrEnergySumHcLastMonth: 136
-    PrEnergySumHwcThisMonth: 65
+    PrEnergySumHwcThisMonth: 75
     PrEnergySumHc: 9057
     PrEnergySumHwcLastMonth: 129
-    PrEnergySumHwc: 4903
-    DisplayedOutsideTemp: 25.5547
-    OutsideTempAvg: 24.7891
-    HwcParallelLoading: "off"
-    Hc1MixerMovement: 0
-    WaterPressure: 2.3
+    PrEnergySumHwc: 4913
+    OutsideTempAvg: 30.1523
+    Currenterror:
+        error: null
+        error_1: null
+        error_2: null
+        error_3: null
+        error_4: null
+    MultiRelaySetting: 4
+    ContinuousHeating: -26
+    HwcHolidayStartPeriod: 24.05.2026
+    MaxCylinderChargeTime: 60
+    HwcLockTime: 60
+    CylinderChargeHyst: 5
+    CylinderChargeOffset: 25
+    HydraulicScheme: 8
+    Date: 25.05.2026
+    Time: "13:02:32"
+    HwcHolidayEndPeriod: 26.05.2026
+    Z1HolidayStartPeriod: 01.01.2015
+    Z1HolidayEndPeriod: 01.01.2015
+    Hc1CircuitType:
+        mctype: mixer
+    Hc2CircuitType:
+        mctype: inactive
+    Hc3CircuitType:
+        mctype: inactive
+    Z1RoomZoneMapping: VRC700
+    Z2RoomZoneMapping: none
+    Z3RoomZoneMapping: none
+    Z1Name1: "Zone "
+ebusd/hmu:
+    SetMode:
+        hcmode: auto
+        flowtempdesired: 0
+        hwctempdesired: null
+        hwcflowtempdesired: null
+        disablehc: 1
+        disablehwctapping: 1
+        disablehwcload: 1
+        remotecontrolhcpump: 0
+        releasebackup: 0
+        releasecooling: 0
+    Status01:
+        temp: 28.5
+        temp_1: 25
+        temp_2: null
+        temp_3: null
+        temp_4: null
+        pumpstate: "off"
+    StatusCirPump: "off"
+    YieldHcDay: 0
+    YieldCoolDay: 0.8
+    YieldHwcDay: 0
+    YieldHcMonth: 46
+    YieldHc: 25996
+    YieldHwcMonth: 179.9
+    YieldHwc: 11783
+    SupplyTempWeighted: 20
+    FlowTemp: 28.69
+    EnergyIntegral: 0
+    CurrentYieldPower: 0
+    CurrentConsumedPower: 0
+    YieldCoolingMonth: 0.8
+    YieldCooling: 60.5
+    TotalEnergyUsage: 13600
+    RunDataStatuscode: standby
+    RunDataCompressorInletTemp: 29.1262
+    RunDataCompressorOutletTemp: 30.4348
+    RunDataEEVOutletTemp: 29.9425
+    RunDataAirInletTemp: 29.9272
+    RunDataBuildingCPumpPower: 0
+    RunStatsHMUHours: 31920
+    RunStatsHcHours: 4156
+    RunStatsHwcHours: 2780
+    RunStatsCompressorHours: 7030
+    RunStatsCompressorStarts: 5459
+    RunStatsBuildingPumpHours: 8134
+    RunStatsBuildingCPumpStarts: 12124
+    RunStats4PortValveHours: 331
+    RunStatsFan1Hours: 7166
+    RunStatsFan1Starts: 7796
+    RunStatsFan2Hours: 0
+    RunStatsFan2Starts: 0
+    Currenterror:
+        error: null
+        error_1: null
+        error_2: null
+        error_3: null
+        error_4: null
+    RunDataCompressorSpeed: 0
+    DateTime:
+        dcfstate: nosignal
+        btime: "-:-:-"
+        bdate: "-.-.-"
+        temp: null
+ebusd/scan.08:
+    "":
+        MF: Vaillant
+        ID: HMU00
+        SW: "0607"
+        HW: "5103"
+ebusd/Scan.08:
+    Id:
+        prefix: "21"
+        year: "22"
+        week: "27"
+        product: "0010021118"
+        supplier: "0001"
+        counter: "013341"
+        suffix: N0
+ebusd/scan.15:
+    "":
+        MF: Vaillant
+        ID: CTLV2
+        SW: "0514"
+        HW: "1104"
+ebusd/Scan.15:
+    Id:
+        prefix: "21"
+        year: "22"
+        week: "13"
+        product: "0020260914"
+        supplier: "0953"
+        counter: "012037"
+        suffix: N8
+ebusd/scan.76:
+    "":
+        MF: Vaillant
+        ID: VWZIO
+        SW: "0607"
+        HW: "5103"
+ebusd/Scan.76:
+    Id:
+        prefix: "21"
+        year: "22"
+        week: "18"
+        product: "0010023609"
+        supplier: "3110"
+        counter: "008200"
+        suffix: N9

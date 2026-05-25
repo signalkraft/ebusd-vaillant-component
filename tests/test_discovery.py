@@ -86,7 +86,7 @@ def test_infer_field_format2_named():
 
 def test_infer_field_non_dict():
     assert _infer_field(None) == "value.value"
-    assert _infer_field("scalar") == "value.value"
+    assert _infer_field("scalar") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +363,7 @@ def test_vrc720_discovers_one_water_heater(vrc720):
 
 
 def test_vrc720_discovers_one_climate_zone(vrc720):
-    """Only Z1 has Z1RoomTemp in vrc720.yml, so only one zone should be discovered."""
+    """Only Z1 has Z1RoomTemp + Hc1CircuitType != inactive in vrc720.yml, so only one zone."""
     prefix, by_device = vrc720
     climates = [e for e in _analyze(by_device, prefix) if isinstance(e, DiscoveredClimate)]
     assert len(climates) == 1
@@ -429,6 +429,42 @@ def test_vrc720_z1_key_and_name(vrc720):
     z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
     assert z1.key == "ctlv2_zone1"
     assert z1.name == "Vaillant Zone 1"
+
+
+def test_inactive_circuit_type_skips_zone():
+    """Zone with Hc{n}CircuitType mctype=inactive is excluded even with room temp."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Z2OpMode": {"value": {"value": "auto"}},
+            "Z2RoomTemp": {"value": {"value": 22.0}},
+            "Hc1CircuitType": {"mctype": {"value": "mixer"}},
+            "Hc2CircuitType": {"mctype": {"value": "inactive"}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    assert climates[0].key == "dev_zone1"
+
+
+def test_room_zone_mapping_none_skips_zone():
+    """Zone with Z{n}RoomZoneMapping=none is excluded even with room temp and OpMode."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Z1RoomZoneMapping": {"value": {"value": "VRC700"}},
+            "Z2OpMode": {"value": {"value": "auto"}},
+            "Z2RoomTemp": {"value": {"value": 0.0}},
+            "Z2RoomZoneMapping": {"value": {"value": "none"}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    assert climates[0].key == "dev_zone1"
 
 
 def test_custom_display_name():

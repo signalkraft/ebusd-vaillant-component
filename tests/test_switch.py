@@ -193,3 +193,51 @@ async def test_turn_on_custom_duration(hass, setup_custom_entry, mqtt_client_moc
     published = _published(mqtt_client_mock)
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.06.2026"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod/set") == "15.06.2026"
+
+
+HWC_HOLIDAY_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcTempDesired": {"value": {"value": 55}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod": {"value": {"value": "01.01.2015"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod": {"value": {"value": "01.01.2015"}},
+}
+
+
+async def _hwc_switch(hass):
+    states = hass.states.async_all("switch")
+    for state in states:
+        if "hot_water" in state.entity_id:
+            return state
+    pytest.fail("No HWC switch found")
+
+
+async def test_hwc_switch_discovered(hass, setup_entry):
+    """HWC away mode switch is created when HWC holiday data is present."""
+    await _fire(hass, HWC_HOLIDAY_MSGS)
+    assert (await _hwc_switch(hass)).state == "off"
+
+
+async def test_hwc_switch_turn_on_publishes_holiday_dates(
+    hass, setup_entry, mqtt_client_mock, freezer
+):
+    """HWC switch turn_on publishes HWC holiday dates."""
+    freezer.move_to("2026-06-01")
+    await _fire(hass, HWC_HOLIDAY_MSGS)
+    sw = await _hwc_switch(hass)
+    assert sw is not None
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_on", {"entity_id": sw.entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.06.2026"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "08.06.2026"
+
+
+async def test_hwc_switch_turn_off_publishes_reset(hass, setup_entry, mqtt_client_mock):
+    """HWC switch turn_off publishes reset dates."""
+    await _fire(hass, HWC_HOLIDAY_MSGS)
+    entity_id = (await _hwc_switch(hass)).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_off", {"entity_id": entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.01.2015"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "01.01.2015"

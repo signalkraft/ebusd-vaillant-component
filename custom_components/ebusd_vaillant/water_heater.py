@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -16,11 +17,14 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION, DOMAIN
 from .coordinator import EbusdCoordinator
 from .discovery import DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
+
+_HOLIDAY_RESET = "01.01.2015"
+_DATE_FMT = "%d.%m.%Y"
 
 
 async def async_setup_entry(
@@ -30,13 +34,20 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     seen: set[str] = set()
+    away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
+    entities_by_key: dict[str, EbusdWaterHeaterEntity] = {}
 
     def _on_discover(entities: list) -> None:
         new = []
         for e in entities:
-            if isinstance(e, DiscoveredWaterHeater) and e.name not in seen:
-                seen.add(e.name)
-                new.append(EbusdWaterHeaterEntity(hass, e, coordinator))
+            if isinstance(e, DiscoveredWaterHeater):
+                if e.name in entities_by_key:
+                    hass.async_create_task(entities_by_key[e.name].async_update_config(e))
+                elif e.name not in seen:
+                    seen.add(e.name)
+                    entity = EbusdWaterHeaterEntity(hass, e, coordinator, away_duration)
+                    entities_by_key[e.name] = entity
+                    new.append(entity)
         if new:
             async_add_entities(new)
 
@@ -48,18 +59,18 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_translation_key = "ebusd_water_heater"
-    _attr_supported_features = (
-        WaterHeaterEntityFeature.TARGET_TEMPERATURE
-        | WaterHeaterEntityFeature.OPERATION_MODE
-        | WaterHeaterEntityFeature.ON_OFF
-    )
 
     def __init__(
-        self, hass: HomeAssistant, config: DiscoveredWaterHeater, coordinator: EbusdCoordinator
+        self,
+        hass: HomeAssistant,
+        config: DiscoveredWaterHeater,
+        coordinator: EbusdCoordinator,
+        away_duration: int = DEFAULT_AWAY_MODE_DURATION,
     ) -> None:
         self.hass = hass
         self._config = config
         self._coordinator = coordinator
+        self._away_duration = away_duration
         self._attr_name = config.name
         self._attr_unique_id = f"ebusd_water_heater_{config.key}"
         self._attr_min_temp = config.min_temp
@@ -69,19 +80,45 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._attr_current_operation: str | None = None
         self._attr_current_temperature: float | None = None
         self._attr_target_temperature: float | None = None
+        self._holiday_start: str | None = None
+        self._holiday_end: str | None = None
         self._unsubscribe: list[Any] = []
+
+        features = (
+            WaterHeaterEntityFeature.TARGET_TEMPERATURE
+            | WaterHeaterEntityFeature.OPERATION_MODE
+            | WaterHeaterEntityFeature.ON_OFF
+            | WaterHeaterEntityFeature.AWAY_MODE
+        )
+        self._attr_supported_features = features
 
     async def async_added_to_hass(self) -> None:
         await self._subscribe(self._config.mode, self._handle_mode)
         await self._subscribe(self._config.target_temperature, self._handle_target_temp)
         if self._config.current_temperature:
             await self._subscribe(self._config.current_temperature, self._handle_current_temp)
+        if self._config.holiday_start:
+            await self._subscribe(self._config.holiday_start, self._handle_holiday_start)
+        if self._config.holiday_end:
+            await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
         self._seed_from_coordinator()
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
         for unsub in self._unsubscribe:
             unsub()
+
+    async def async_update_config(self, config: DiscoveredWaterHeater) -> None:
+        if config.holiday_start and not self._config.holiday_start:
+            await self._subscribe(config.holiday_start, self._handle_holiday_start)
+            if (v := self._coordinator.get_current_value(config.holiday_start)) is not None:
+                self._handle_holiday_start(v)
+        if config.holiday_end and not self._config.holiday_end:
+            await self._subscribe(config.holiday_end, self._handle_holiday_end)
+            if (v := self._coordinator.get_current_value(config.holiday_end)) is not None:
+                self._handle_holiday_end(v)
+        self._config = config
+        self.async_write_ha_state()
 
     def _seed_from_coordinator(self) -> None:
         if (v := self._coordinator.get_current_value(self._config.mode)) is not None:
@@ -93,6 +130,12 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
                 v := self._coordinator.get_current_value(self._config.current_temperature)
             ) is not None:
                 self._handle_current_temp(v)
+        if self._config.holiday_start:
+            if (v := self._coordinator.get_current_value(self._config.holiday_start)) is not None:
+                self._handle_holiday_start(v)
+        if self._config.holiday_end:
+            if (v := self._coordinator.get_current_value(self._config.holiday_end)) is not None:
+                self._handle_holiday_end(v)
 
     async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
         @callback
@@ -131,6 +174,41 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             self._attr_current_temperature = float(value)
         except (TypeError, ValueError):  # fmt: skip
             pass
+
+    @callback
+    def _handle_holiday_start(self, value: Any) -> None:
+        self._holiday_start = str(value)
+
+    @callback
+    def _handle_holiday_end(self, value: Any) -> None:
+        self._holiday_end = str(value)
+
+    @property
+    def is_away_mode_on(self) -> bool | None:
+        if not self._holiday_start or not self._holiday_end:
+            return None
+        try:
+            now = datetime.now().date()
+            start = datetime.strptime(self._holiday_start, _DATE_FMT).date()
+            end = datetime.strptime(self._holiday_end, _DATE_FMT).date()
+            return start <= now <= end
+        except ValueError:
+            return None
+
+    async def _publish(self, topic: str, payload: str) -> None:
+        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
+        await mqtt.async_publish(self.hass, topic, payload)
+
+    async def async_turn_away_mode_on(self) -> None:
+        today = datetime.now().date()
+        start_str = today.strftime(_DATE_FMT)
+        end_str = (today + timedelta(days=self._away_duration)).strftime(_DATE_FMT)
+        await self._publish(self._config.holiday_start.write_topic, start_str)
+        await self._publish(self._config.holiday_end.write_topic, end_str)
+
+    async def async_turn_away_mode_off(self) -> None:
+        await self._publish(self._config.holiday_start.write_topic, _HOLIDAY_RESET)
+        await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         temp = kwargs.get(ATTR_TEMPERATURE)

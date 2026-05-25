@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
-from .discovery import DiscoveredClimate, TopicConfig, _get
+from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,43 +35,71 @@ async def async_setup_entry(
     def _on_discover(entities: list) -> None:
         new = []
         for e in entities:
-            if not isinstance(e, DiscoveredClimate):
-                continue
-            key = f"{e.key}_quick_veto_end"
-            if key not in entities_by_key:
-                entity = EbusdQuickVetoEndEntity(hass, e)
-                entities_by_key[key] = entity
-                new.append(entity)
-            key = f"{e.key}_holiday_start"
-            if key in entities_by_key:
-                hass.async_create_task(entities_by_key[key].async_update_config(e))
-            else:
-                entity = EbusdHolidayEntity(
-                    hass,
-                    coordinator,
-                    e,
-                    "holiday_start",
-                    "holiday_start_time",
-                    "Holiday Start",
-                    "holiday_start",
-                )
-                entities_by_key[key] = entity
-                new.append(entity)
-            key = f"{e.key}_holiday_end"
-            if key in entities_by_key:
-                hass.async_create_task(entities_by_key[key].async_update_config(e))
-            else:
-                entity = EbusdHolidayEntity(
-                    hass,
-                    coordinator,
-                    e,
-                    "holiday_end",
-                    "holiday_end_time",
-                    "Holiday End",
-                    "holiday_end",
-                )
-                entities_by_key[key] = entity
-                new.append(entity)
+            if isinstance(e, DiscoveredClimate):
+                key = f"{e.key}_quick_veto_end"
+                if key not in entities_by_key:
+                    entity = EbusdQuickVetoEndEntity(hass, e)
+                    entities_by_key[key] = entity
+                    new.append(entity)
+                key = f"{e.key}_holiday_start"
+                if key in entities_by_key:
+                    hass.async_create_task(entities_by_key[key].async_update_config(e))
+                else:
+                    entity = EbusdHolidayEntity(
+                        hass,
+                        coordinator,
+                        e,
+                        "holiday_start",
+                        "holiday_start_time",
+                        "Holiday Start",
+                        "holiday_start",
+                    )
+                    entities_by_key[key] = entity
+                    new.append(entity)
+                key = f"{e.key}_holiday_end"
+                if key in entities_by_key:
+                    hass.async_create_task(entities_by_key[key].async_update_config(e))
+                else:
+                    entity = EbusdHolidayEntity(
+                        hass,
+                        coordinator,
+                        e,
+                        "holiday_end",
+                        "holiday_end_time",
+                        "Holiday End",
+                        "holiday_end",
+                    )
+                    entities_by_key[key] = entity
+                    new.append(entity)
+            elif isinstance(e, DiscoveredWaterHeater):
+                if e.holiday_start:
+                    key = f"{e.key}_hwc_holiday_start"
+                    if key not in entities_by_key:
+                        entity = EbusdHolidayEntity(
+                            hass,
+                            coordinator,
+                            e,
+                            "holiday_start",
+                            "holiday_start_time",
+                            "Holiday Start",
+                            "hwc_holiday_start",
+                        )
+                        entities_by_key[key] = entity
+                        new.append(entity)
+                if e.holiday_end:
+                    key = f"{e.key}_hwc_holiday_end"
+                    if key not in entities_by_key:
+                        entity = EbusdHolidayEntity(
+                            hass,
+                            coordinator,
+                            e,
+                            "holiday_end",
+                            "holiday_end_time",
+                            "Holiday End",
+                            "hwc_holiday_end",
+                        )
+                        entities_by_key[key] = entity
+                        new.append(entity)
         if new:
             async_add_entities(new)
 
@@ -144,12 +172,13 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
 class EbusdHolidayEntity(DateTimeEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
+    _config: DiscoveredClimate | DiscoveredWaterHeater
 
     def __init__(
         self,
         hass: HomeAssistant,
         coordinator: EbusdCoordinator,
-        config: DiscoveredClimate,
+        config: DiscoveredClimate | DiscoveredWaterHeater,
         date_attr: str,
         time_attr: str,
         name_suffix: str,
@@ -178,7 +207,7 @@ class EbusdHolidayEntity(DateTimeEntity):
         if time_cfg:
             await self._subscribe(time_cfg, self._handle_time)
 
-    async def async_update_config(self, config: DiscoveredClimate) -> None:
+    async def async_update_config(self, config: DiscoveredClimate | DiscoveredWaterHeater) -> None:
         old_time_cfg = getattr(self._config, self._time_attr)
         new_time_cfg = getattr(config, self._time_attr)
         if new_time_cfg and not old_time_cfg:
