@@ -230,6 +230,7 @@ def _analyze(
     by_device: dict[str, dict[str, Any]],
     prefix: str,
     display_name: str = "Vaillant",
+    max_zones: int = 4,
 ) -> list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor]:
     """Build a list of discovered entities from per-device message dicts."""
     entities: list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor] = []
@@ -312,7 +313,7 @@ def _analyze(
             )
 
         # --- Zone-based heating: Z{n}OpMode + live Z{n}RoomTemp value required ---
-        for zone in range(1, 5):
+        for zone in range(1, max_zones + 1):
             op_key = _resolve_key(msgs, "zone_op_mode", n=zone)
             room_key = _resolve_key(msgs, "zone_room_temp", n=zone)
             if not op_key or not room_key:

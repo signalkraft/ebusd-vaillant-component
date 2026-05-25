@@ -8,8 +8,10 @@ from collections.abc import Callable
 from typing import Any
 
 from homeassistant.components import mqtt
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 
+from .const import CONF_MAX_ZONES, DEFAULT_MAX_ZONES
 from .discovery import (
     DiscoveredClimate,
     DiscoveredPressureSensor,
@@ -53,10 +55,13 @@ Listener = Callable[[list[DiscoveredEntity]], None]
 class EbusdCoordinator:
     """Subscribes to ebusd/# and notifies listeners whenever new entities are discovered."""
 
-    def __init__(self, hass: HomeAssistant, prefix: str, display_name: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, prefix: str, display_name: str, entry: ConfigEntry
+    ) -> None:
         self._hass = hass
         self._prefix = prefix
         self._display_name = display_name
+        self._entry = entry
         self._by_device: dict[str, dict[str, Any]] = {}
         self._listeners: list[Listener] = []
         self._known_entity_sigs: frozenset[tuple] = frozenset()
@@ -89,7 +94,12 @@ class EbusdCoordinator:
     def add_listener(self, listener: Listener) -> None:
         """Register a listener. Fires immediately with current state, then on each new discovery."""
         self._listeners.append(listener)
-        entities = _analyze(self._by_device, self._prefix, self._display_name)
+        entities = _analyze(
+            self._by_device,
+            self._prefix,
+            self._display_name,
+            max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
+        )
         if entities:
             listener(entities)
 
@@ -112,7 +122,12 @@ class EbusdCoordinator:
             return  # unchanged  -  skip re-analysis
 
         device_msgs[msg_name] = payload
-        entities = _analyze(self._by_device, self._prefix, self._display_name)
+        entities = _analyze(
+            self._by_device,
+            self._prefix,
+            self._display_name,
+            max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
+        )
         new_sigs = frozenset(_entity_sig(e) for e in entities)
         if new_sigs == self._known_entity_sigs:
             return  # no change in entity set or config  -  skip listener calls
