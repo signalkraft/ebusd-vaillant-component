@@ -326,3 +326,112 @@ async def test_set_away_mode_off_publishes_reset(hass, setup_holiday_entry, mqtt
     published = _published(mqtt_client_mock)
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.01.2015"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "01.01.2015"
+
+
+# ---------------------------------------------------------------------------
+# Boost operation mode (requires HwcSFMode)
+# ---------------------------------------------------------------------------
+
+HWC_BOOST_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcTempDesired": {"value": {"value": 55}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode": {"value": {"value": "auto"}},
+}
+
+
+@pytest.fixture
+async def setup_boost_entry(hass, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, data={"mqtt_prefix": MQTT_PREFIX})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    yield entry
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def _fire_boost(hass, msgs: dict = HWC_BOOST_MSGS) -> None:
+    for topic, payload in msgs.items():
+        async_fire_mqtt_message(hass, topic, json.dumps(payload))
+    await hass.async_block_till_done()
+    for topic, payload in msgs.items():
+        async_fire_mqtt_message(hass, topic, json.dumps(payload))
+    await hass.async_block_till_done()
+
+
+async def test_boost_in_operation_list(hass, setup_boost_entry):
+    """operation_list includes 'boost' when HwcSFMode is present."""
+    await _fire_boost(hass)
+    wh = _water_heater(hass)
+    assert "boost" in wh.attributes.get("operation_list", [])
+
+
+async def test_boost_operation_shown_when_sf_mode_load(hass, setup_boost_entry):
+    """current_operation shows 'boost' when HwcSFMode is 'load'."""
+    await _fire_boost(hass)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    assert _water_heater(hass).state == "boost"
+
+
+async def test_boost_operation_clears_when_sf_mode_auto(hass, setup_boost_entry):
+    """current_operation returns to normal op_mode when sf_mode becomes 'auto'."""
+    await _fire_boost(hass)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    assert _water_heater(hass).state == "boost"
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "auto"}}),
+    )
+    await hass.async_block_till_done()
+    assert _water_heater(hass).state == "auto"
+
+
+async def test_set_operation_mode_boost_publishes_load(hass, setup_boost_entry, mqtt_client_mock):
+    """Setting operation mode to 'boost' publishes 'load' to HwcSFMode/set."""
+    await _fire_boost(hass)
+    entity_id = _water_heater(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "water_heater",
+        "set_operation_mode",
+        {"entity_id": entity_id, "operation_mode": "boost"},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "load"
+    assert f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode/set" not in published
+
+
+async def test_boost_is_cleared_when_set_to_other_mode(hass, setup_boost_entry, mqtt_client_mock):
+    """Setting op_mode from boost to another mode publishes 'auto' to HwcSFMode/set
+    and the new mode to HwcOpMode/set."""
+    await _fire_boost(hass)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    assert _water_heater(hass).state == "boost"
+    entity_id = _water_heater(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "water_heater",
+        "set_operation_mode",
+        {"entity_id": entity_id, "operation_mode": "day"},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "auto"
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode/set") == "day"

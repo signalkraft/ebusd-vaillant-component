@@ -1,4 +1,4 @@
-"""Switch entities for ebusd Vaillant away mode."""
+"""Switch entities for ebusd Vaillant away mode and hot water boost."""
 
 from __future__ import annotations
 
@@ -29,7 +29,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities_by_key: dict[str, EbusdAwayModeSwitch | EbusdHwcAwayModeSwitch] = {}
+    entities_by_key: dict[
+        str, EbusdAwayModeSwitch | EbusdHwcAwayModeSwitch | EbusdHwcBoostSwitch
+    ] = {}
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
 
     def _on_discover(entities: list) -> None:
@@ -41,12 +43,19 @@ async def async_setup_entry(
                     entity = EbusdAwayModeSwitch(hass, e, away_duration)
                     entities_by_key[key] = entity
                     new.append(entity)
-            elif isinstance(e, DiscoveredWaterHeater) and e.holiday_start and e.holiday_end:
-                key = f"{e.key}_away_mode"
-                if key not in entities_by_key:
-                    entity = EbusdHwcAwayModeSwitch(hass, e, away_duration)
-                    entities_by_key[key] = entity
-                    new.append(entity)
+            elif isinstance(e, DiscoveredWaterHeater):
+                if e.holiday_start and e.holiday_end:
+                    key = f"{e.key}_away_mode"
+                    if key not in entities_by_key:
+                        entity = EbusdHwcAwayModeSwitch(hass, e, away_duration)
+                        entities_by_key[key] = entity
+                        new.append(entity)
+                if e.sf_mode:
+                    key2 = f"{e.key}_boost"
+                    if key2 not in entities_by_key:
+                        entity = EbusdHwcBoostSwitch(hass, e)
+                        entities_by_key[key2] = entity
+                        new.append(entity)
         if new:
             async_add_entities(new)
 
@@ -209,3 +218,60 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
             await self._publish(self._config.holiday_start.write_topic, _HOLIDAY_RESET)
         if self._config.holiday_end:
             await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
+
+
+class EbusdHwcBoostSwitch(SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_icon = "mdi:water-boiler-alert"
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredWaterHeater) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_name = f"{config.name} Boost"
+        self._attr_unique_id = f"ebusd_boost_{config.key}"
+        self._sf_mode: str | None = None
+        self._unsubscribe: list[Any] = []
+
+    async def async_added_to_hass(self) -> None:
+        if self._config.sf_mode:
+            await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._unsubscribe:
+            unsub()
+
+    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+        @callback
+        def _wrap(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except (json.JSONDecodeError, ValueError):  # fmt: skip
+                payload = msg.payload
+            value = _get(payload, topic_cfg.field)
+            if value is not None:
+                handler(value)
+                self.async_write_ha_state()
+
+        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
+        self._unsubscribe.append(unsub)
+
+    @callback
+    def _handle_sf_mode(self, value: Any) -> None:
+        self._sf_mode = str(value)
+
+    @property
+    def is_on(self) -> bool:
+        return self._sf_mode == "load"
+
+    async def _publish(self, topic: str, payload: str) -> None:
+        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
+        await mqtt.async_publish(self.hass, topic, payload)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        if self._config.sf_mode and self._config.sf_mode.write_topic:
+            await self._publish(self._config.sf_mode.write_topic, "load")
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        if self._config.sf_mode and self._config.sf_mode.write_topic:
+            await self._publish(self._config.sf_mode.write_topic, "auto")

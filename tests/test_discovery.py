@@ -386,6 +386,16 @@ def test_vrc720_water_heater_topics(vrc720):
     assert wh.current_temperature.write_topic is None
 
 
+def test_vrc720_water_heater_sf_mode(vrc720):
+    """HwcSFMode is present in the data → sf_mode is set on DiscoveredWaterHeater."""
+    prefix, by_device = vrc720
+    entities = _analyze(by_device, prefix)
+    wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
+    assert wh.sf_mode is not None
+    assert wh.sf_mode.read_topic == "ebusd/ctlv2/HwcSFMode"
+    assert wh.sf_mode.write_topic == "ebusd/ctlv2/HwcSFMode/set"
+
+
 def test_vrc720_water_heater_temp_range(vrc720):
     prefix, by_device = vrc720
     entities = _analyze(by_device, prefix)

@@ -169,3 +169,6 @@ config/*
 
 # Docker
 docker/config
+
+# Downloaded ebusd configuration snapshot
+ebusd-configuration/

@@ -31,7 +31,8 @@ Assistant HVAC modes:
 | `off` | `off` |
 
 For water heaters, the raw ebusd operation mode values (`auto`, `day`, `off`)
-are passed through directly.
+are passed through directly.  When `HwcSFMode` is available, an additional
+`boost` mode is added to the operation list.
 
 ## Preset modes
 
@@ -90,9 +91,27 @@ are present.
 | `HwcStorageTemp` | `value.value` | read | Current temperature |
 | `HwcStorageTempBottom` | `value.value` | read | Current temperature (fallback) |
 | `HwcStorageTempTop` | `value.value` | read | Current temperature (fallback) |
+| `HwcSFMode` | `value.value` | read/write | Boost operation mode (`auto`, `load`) |
+| `HwcHolidayStartPeriod` | `value.value` | read/write | Away mode start |
+| `HwcHolidayEndPeriod` | `value.value` | read/write | Away mode end |
 
 Current temperature is read from the first available message in the order:
-`HwcStorageTemp` :material-arrow-right: `HwcStorageTempBottom` :material-arrow-right: `HwcStorageTempTop`.
+`HwcStorageTemp` → `HwcStorageTempBottom` → `HwcStorageTempTop`.
+
+### Boost operation
+
+When `HwcSFMode` is present, an additional `boost` operation mode is added to
+the water heater's operation list, and a dedicated **Hot Water Boost** switch
+entity is created.
+
+| Control | Mechanism |
+|---|---|
+| Operation mode `boost` / Switch turn on | Writes `load` to `HwcSFMode/set` |
+| Operation mode `auto`/`day`/`off` / Switch turn off | Writes `auto` to `HwcSFMode/set` |
+| State display | Shows `boost` when `HwcSFMode` is `load`, falls back to actual `HwcOpMode` value otherwise |
+
+The underlying `HwcOpMode` is not changed when boost is activated; the water
+heater continues to show its normal operation mode once boost is turned off.
 
 ## Pressure sensor
 

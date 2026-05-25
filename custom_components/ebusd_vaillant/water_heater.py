@@ -76,12 +76,17 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step
-        self._attr_operation_list = config.operation_modes
+        if config.sf_mode:
+            self._attr_operation_list = [*config.operation_modes, "boost"]
+        else:
+            self._attr_operation_list = config.operation_modes
         self._attr_current_operation: str | None = None
         self._attr_current_temperature: float | None = None
         self._attr_target_temperature: float | None = None
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
+        self._sf_mode: str | None = None
+        self._raw_operation: str | None = None
         self._unsubscribe: list[Any] = []
 
         features = (
@@ -101,6 +106,8 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(self._config.holiday_start, self._handle_holiday_start)
         if self._config.holiday_end:
             await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
+        if self._config.sf_mode:
+            await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
         self._seed_from_coordinator()
         self.async_write_ha_state()
 
@@ -117,6 +124,11 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(config.holiday_end, self._handle_holiday_end)
             if (v := self._coordinator.get_current_value(config.holiday_end)) is not None:
                 self._handle_holiday_end(v)
+        if config.sf_mode and not self._config.sf_mode:
+            await self._subscribe(config.sf_mode, self._handle_sf_mode)
+            if (v := self._coordinator.get_current_value(config.sf_mode)) is not None:
+                self._handle_sf_mode(v)
+            self._attr_operation_list = [*config.operation_modes, "boost"]
         self._config = config
         self.async_write_ha_state()
 
@@ -136,6 +148,9 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         if self._config.holiday_end:
             if (v := self._coordinator.get_current_value(self._config.holiday_end)) is not None:
                 self._handle_holiday_end(v)
+        if self._config.sf_mode:
+            if (v := self._coordinator.get_current_value(self._config.sf_mode)) is not None:
+                self._handle_sf_mode(v)
 
     async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
         @callback
@@ -154,12 +169,8 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
 
     @callback
     def _handle_mode(self, value: str) -> None:
-        mode = str(value)
-        if mode in self._attr_operation_list:
-            self._attr_current_operation = mode
-        else:
-            _LOGGER.warning("Unknown HWC operation mode from ebusd: %s", mode)
-            self._attr_current_operation = mode
+        self._raw_operation = str(value)
+        self._attr_current_operation = "boost" if self._sf_mode == "load" else self._raw_operation
 
     @callback
     def _handle_target_temp(self, value: Any) -> None:
@@ -182,6 +193,14 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
     @callback
     def _handle_holiday_end(self, value: Any) -> None:
         self._holiday_end = str(value)
+
+    @callback
+    def _handle_sf_mode(self, value: Any) -> None:
+        self._sf_mode = str(value)
+        if self._raw_operation is not None:
+            self._attr_current_operation = (
+                "boost" if self._sf_mode == "load" else self._raw_operation
+            )
 
     @property
     def is_away_mode_on(self) -> bool | None:
@@ -219,9 +238,15 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await mqtt.async_publish(self.hass, cfg.write_topic, str(temp))
 
     async def async_set_operation_mode(self, operation_mode: str) -> None:
+        if operation_mode == "boost":
+            if self._config.sf_mode and self._config.sf_mode.write_topic:
+                await self._publish(self._config.sf_mode.write_topic, "load")
+            return
+        if self._config.sf_mode and self._config.sf_mode.write_topic and self._sf_mode == "load":
+            await self._publish(self._config.sf_mode.write_topic, "auto")
         cfg = self._config.mode
         if cfg.write_topic:
-            await mqtt.async_publish(self.hass, cfg.write_topic, operation_mode)
+            await self._publish(cfg.write_topic, operation_mode)
 
     async def async_turn_on(self) -> None:
         await self.async_set_operation_mode("auto")

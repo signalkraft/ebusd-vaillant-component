@@ -206,9 +206,9 @@ HWC_HOLIDAY_MSGS: dict[str, dict] = {
 async def _hwc_switch(hass):
     states = hass.states.async_all("switch")
     for state in states:
-        if "hot_water" in state.entity_id:
+        if "away" in state.entity_id and "hot_water" in state.entity_id:
             return state
-    pytest.fail("No HWC switch found")
+    pytest.fail("No HWC away mode switch found")
 
 
 async def test_hwc_switch_discovered(hass, setup_entry):
@@ -241,3 +241,85 @@ async def test_hwc_switch_turn_off_publishes_reset(hass, setup_entry, mqtt_clien
     published = _published(mqtt_client_mock)
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayStartPeriod/set") == "01.01.2015"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcHolidayEndPeriod/set") == "01.01.2015"
+
+
+# ---------------------------------------------------------------------------
+# HWC Boost Switch
+# ---------------------------------------------------------------------------
+
+HWC_BOOST_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcTempDesired": {"value": {"value": 55}},
+    f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode": {"value": {"value": "auto"}},
+}
+
+
+async def _boost_switch(hass):
+    states = hass.states.async_all("switch")
+    for state in states:
+        if "boost" in state.entity_id:
+            return state
+    pytest.fail("No boost switch found")
+
+
+async def test_boost_switch_discovered(hass, setup_entry):
+    """Boost switch is created when HwcSFMode is present."""
+    await _fire(hass, HWC_BOOST_MSGS)
+    assert (await _boost_switch(hass)).state == "off"
+
+
+async def test_boost_switch_on_when_load(hass, setup_entry):
+    """Boost switch is on when HwcSFMode is 'load'."""
+    await _fire(hass, HWC_BOOST_MSGS)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    assert (await _boost_switch(hass)).state == "on"
+
+
+async def test_boost_switch_off_when_auto(hass, setup_entry):
+    """Boost switch is off when HwcSFMode is 'auto'."""
+    await _fire(hass, HWC_BOOST_MSGS)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    assert (await _boost_switch(hass)).state == "on"
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "auto"}}),
+    )
+    await hass.async_block_till_done()
+    assert (await _boost_switch(hass)).state == "off"
+
+
+async def test_boost_switch_turn_on_publishes_load(hass, setup_entry, mqtt_client_mock):
+    """Boost switch turn_on publishes 'load' to HwcSFMode/set."""
+    await _fire(hass, HWC_BOOST_MSGS)
+    sw = await _boost_switch(hass)
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_on", {"entity_id": sw.entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "load"
+
+
+async def test_boost_switch_turn_off_publishes_auto(hass, setup_entry, mqtt_client_mock):
+    """Boost switch turn_off publishes 'auto' to HwcSFMode/set."""
+    await _fire(hass, HWC_BOOST_MSGS)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode",
+        json.dumps({"value": {"value": "load"}}),
+    )
+    await hass.async_block_till_done()
+    sw = await _boost_switch(hass)
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call("switch", "turn_off", {"entity_id": sw.entity_id}, blocking=True)
+    published = _published(mqtt_client_mock)
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "auto"

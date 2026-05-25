@@ -9,7 +9,8 @@
       "ebusd_water_heater": {
         "state": {
           "auto": "mdi:water-boiler-auto",
-          "day": "mdi:weather-sunny"
+          "day": "mdi:weather-sunny",
+          "boost": "mdi:water-boiler-alert"
         }
       }
     }

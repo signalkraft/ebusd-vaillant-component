@@ -59,6 +59,7 @@ class DiscoveredWaterHeater:
     target_temperature: TopicConfig
     current_temperature: TopicConfig | None = None
     operation_modes: list[str] = field(default_factory=lambda: ["auto", "day", "off"])
+    sf_mode: TopicConfig | None = None
     holiday_start: TopicConfig | None = None
     holiday_end: TopicConfig | None = None
     holiday_start_time: TopicConfig | None = None
@@ -156,6 +157,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "zone_quick_veto_end_time": ["Z{n}QuickVetoEndTime"],
     "zone_holiday_start_time": ["z{n}HolidayStartTime", "Z{n}HolidayStartTime"],
     "zone_holiday_end_time": ["z{n}HolidayEndTime", "Z{n}HolidayEndTime"],
+    "hwc_sf_mode": ["HwcSFMode"],
     "hwc_holiday_start": ["HwcHolidayStartPeriod", "HwcHolidayStartDate"],
     "hwc_holiday_end": ["HwcHolidayEndPeriod", "HwcHolidayEndDate"],
     "hwc_holiday_start_time": ["HwcHolidayStartTime"],
@@ -256,6 +258,7 @@ def _analyze(
             hwc_h_end_key, hwc_h_end_field = _find_nested(msgs, "hwc_holiday_end")
             hwc_h_st_key, hwc_h_st_field = _find_nested(msgs, "hwc_holiday_start_time")
             hwc_h_et_key, hwc_h_et_field = _find_nested(msgs, "hwc_holiday_end_time")
+            hwc_sf_key = _resolve_key(msgs, "hwc_sf_mode")
             entities.append(
                 DiscoveredWaterHeater(
                     device_id=device_id,
@@ -273,6 +276,11 @@ def _analyze(
                         hwc_current_key,
                         _infer_field(msgs.get(hwc_current_key)),
                         writable=False,
+                    ),
+                    sf_mode=(
+                        _topic_config(prefix, device_id, hwc_sf_key, _infer_field(msgs[hwc_sf_key]))
+                        if hwc_sf_key
+                        else None
                     ),
                     holiday_start=_topic_config(
                         prefix,
