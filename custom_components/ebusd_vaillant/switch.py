@@ -63,6 +63,8 @@ async def async_setup_entry(
 
 
 class EbusdAwayModeSwitch(SwitchEntity):
+    """Switch to toggle away mode (holiday) for a heating zone, setting start/end dates on ebusd."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:airplane-takeoff"
@@ -139,6 +141,8 @@ class EbusdAwayModeSwitch(SwitchEntity):
 
 
 class EbusdHwcAwayModeSwitch(SwitchEntity):
+    """Switch to toggle away mode (holiday) for a hot water circuit, setting dates on ebusd."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:airplane-takeoff"
@@ -221,6 +225,8 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
 
 
 class EbusdHwcBoostSwitch(SwitchEntity):
+    """Switch to toggle hot water boost mode (load) on a water heater circuit."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:water-boiler-alert"

@@ -1,0 +1,54 @@
+{
+  "entity": {
+    "water_heater": {
+      "ebusd_water_heater": {
+        "state": {
+          "auto": "Automático",
+          "day": "Manual",
+          "boost": "Boost"
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "ebusd Vaillant",
+        "description": "Configura la integración MQTT de ebusd. Asegúrate de que la integración MQTT esté configurada primero.",
+        "data": {
+          "name": "Nombre del dispositivo",
+          "mqtt_prefix": "Prefijo del tema MQTT"
+        },
+        "data_description": {
+          "name": "Nombre mostrado en las etiquetas de entidad, ej. \"Vaillant\" produce \"Vaillant Zone 1\"",
+          "mqtt_prefix": "El tema raíz al que ebusd publica (por defecto: ebusd)"
+        }
+      }
+    },
+    "error": {
+      "mqtt_not_available": "La integración MQTT no está disponible. Configúrala primero."
+    },
+    "abort": {
+      "already_configured": "Este prefijo de ebusd ya está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configurar ebusd Vaillant",
+        "data": {
+          "away_mode_duration": "Duración predeterminada del modo ausente (días)",
+          "quick_veto_duration": "Duración predeterminada del veto rápido (horas)",
+          "max_zones": "Número de zonas",
+          "prime_poll_values": "Descubrir dispositivos al iniciar"
+        },
+        "data_description": {
+          "away_mode_duration": "Número de días que dura el modo ausente cuando se activa (por defecto: 7)",
+          "quick_veto_duration": "Número de horas que dura el veto rápido cuando se activa (por defecto: 3)",
+          "max_zones": "Limita cuántas entidades de zona se crean (por defecto: 4)",
+          "prime_poll_values": "Intenta solicitar nombres de temas MQTT típicos para poder mostrar valores inmediatamente al iniciar. Si está desactivado, las entidades estarán disponibles a medida que se publiquen valores MQTT (por defecto: activado)"
+        }
+      }
+    }
+  }
+}

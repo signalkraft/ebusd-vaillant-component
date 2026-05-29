@@ -1,20 +1,7 @@
-# ebusd Vaillant
+# Getting Started
 
 This Home Assistant component connects to an ebusd instance through MQTT and auto-discovers
 Vaillant-compatible entities as topics appear. No manual configuration of individual entities is required.
-
-## Supported Entities
-
-| Entity type      | Description                                                                                             |
-|------------------|---------------------------------------------------------------------------------------------------------|
-| **Climate**      | Up to 4 heating zones (Z1-Z4) with mode, temperature control, holiday schedules, and quick veto (boost) |
-| **Water Heater** | Hot water circuit control (HWC) with mode, target temperature, and current temperature                  |
-| **Sensor**       | Water pressure (bar)                                                                                    |
-
-## Tested Installation Types
-
-* Vaillant aroTHERM plus heatpump & sensoCOMFORT VRC 720
-* Have a different one? Check [data capture](data-capture.md) on how to create test data and get you rsystem supported
 
 ## Installation
 
@@ -23,6 +10,8 @@ Before installing, make sure you have these prerequisites:
 - **ebusd** configured to publish Vaillant messages over MQTT, see [my quick install guide](ebusd.md) or [read the full offical guide](https://adapter.ebusd.eu/v5-c6/steps.en.html)
 - **Home Assistant** with MQTT integration configured
 - You know which topic ebusd is publishing MQTT messages on (`EBUSD_MQTTTOPIC`)
+
+[Hardware Setup Guide](ebusd.md){ .md-button }
 
 === "HACS"
 
@@ -51,11 +40,25 @@ Before installing, make sure you have these prerequisites:
        ([or click here](https://my.home-assistant.io/redirect/config_flow_start/?domain=ebusd_vaillant))
     5. Configure the MQTT topic prefix (default: `ebusd`) and display name
 
-!!! note
+!!! info "Initial Startup"
 
-    The component auto-discovers zones, water heater, and sensors as ebusd
-    publishes their topics. Entities may take a few minutes to appear in
-    Home Assistant after adding the integration.
+    The component auto-discovers zones, water heater, and sensors on startup by sending discovery messages
+    to ebusd for common device types. It may take a few minutes for all entities to be fully discovered.
+
+## Comparison
+
+|                   | ebusd-vaillant-component                                                         | [ebusd over MQTT](https://github.com/john30/ebusd/wiki/MQTT-integration)  | [mypyllant-component](https://github.com/signalkraft/mypyllant-component) |
+|-------------------|----------------------------------------------------------------------------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------|
+| **Scope**         | Maps eBUS MQTT values to climate controls, partially replicates myVAILLANT app   | Direct mapping from eBUS data to HA entities                              | Matches myVAILLANT app structure & data availability                      |
+| **Communication** | Local MQTT<br />Offline capable                                                  | Local MQTT<br />Offline capable                                           | Cloud API<br />No offline access                                          |
+| **Requirememts**  | eBUS adapter, ebusd, MQTT broker, HACS                                           | eBUS adapter, ebusd, MQTT broker                                          | sensoNET / myVAILLANT gateway, myVAILLANT account, HACS                   |
+| **Brands**        | Only tested on Vaillant                                                          | Any eBUS brand                                                            | Vaillant and some sub-brands                                              |
+| **Limitations**   | Shows far less entities than ebusd over MQTT, but users can use both in parallel | Needs custom climate / hot water configuration to get functional controls | Relies on a somewhat temperamental cloud API, exposes less technical data |
+
+## Tested Installation Types
+
+* Vaillant aroTHERM plus heatpump & sensoCOMFORT VRC 720
+* Have a different one? Check [data capture](data-capture.md) on how to create test data and get you rsystem supported
 
 ### MQTT
 
@@ -64,17 +67,4 @@ map to which Home Assistant controls.
 
 ## Development
 
-A `docker-compose.yml` is provided to spin up a test Home Assistant instance
-with the component pre-installed.
-
-1. Copy the environment template:
-   ```bash
-   cp docker/.env.sample docker/.env
-   ```
-2. Edit `docker/.env` and set your MQTT broker address and port. ebusd needs to be running and publishing already, it's not included in this setup.
-3. Start the container:
-   ```bash
-   docker compose up -d
-   ```
-4. Access Home Assistant at [http://localhost:8123](http://localhost:8123) and log in with `test` / `test`.
-5. You should find [devices in the integration](https://my.home-assistant.io/redirect/integration/?domain=ebusd_vaillant)
+See [Development](development.md) for instructions on setting up a local test environment, pre-commit hooks, and running tests.

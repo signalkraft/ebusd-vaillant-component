@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from asyncio import Task
 from collections.abc import Callable
 from typing import Any
 
@@ -11,7 +12,16 @@ from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 
-from .const import CONF_MAX_ZONES, DEFAULT_MAX_ZONES
+from .const import (
+    _DISCOVERY_TOPICS_HWC,
+    _DISCOVERY_TOPICS_PRESSURE,
+    _DISCOVERY_TOPICS_ZONE,
+    CONF_MAX_ZONES,
+    CONF_PRIME_VALUES,
+    DEFAULT_MAX_ZONES,
+    DEFAULT_PRIME_VALUES,
+    DISCOVERY_DEVICE_NAMES,
+)
 from .discovery import (
     DiscoveredClimate,
     DiscoveredPressureSensor,
@@ -23,7 +33,7 @@ from .discovery import (
 
 _LOGGER = logging.getLogger(__name__)
 
-DiscoveredEntity = DiscoveredClimate | DiscoveredWaterHeater
+DiscoveredEntity = DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor
 
 
 def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor) -> tuple:
@@ -66,17 +76,61 @@ class EbusdCoordinator:
         self._listeners: list[Listener] = []
         self._known_entity_sigs: frozenset[tuple] = frozenset()
         self._unsub: Callable | None = None
+        self._bg_tasks: list[Task] = []
+        self._stopping: bool = False
 
     async def async_start(self) -> None:
         self._unsub = await mqtt.async_subscribe(
             self._hass, f"{self._prefix}/#", self._handle_message
         )
         _LOGGER.debug("ebusd coordinator: listening on %s/#", self._prefix)
+        if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+            self._schedule_task(self._discovery_prime(), "ebusd discovery prime")
+
+    async def _discovery_prime(self) -> None:
+        """Publish ?1 to minimal discovery topics for common device names.
+
+        Triggers ebusd to publish the few values needed for _analyze() to
+        discover entities.  Unknown devices/topics are silently ignored.
+        Once entities are discovered, _prime_values() handles the full set.
+        """
+        max_zones = self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES)
+        topics: list[str] = [
+            *[
+                self._prefix + "/" + dev + "/" + t
+                for dev in DISCOVERY_DEVICE_NAMES
+                for t in _DISCOVERY_TOPICS_HWC
+            ],
+            *[
+                self._prefix + "/" + dev + "/" + t
+                for dev in DISCOVERY_DEVICE_NAMES
+                for t in _DISCOVERY_TOPICS_PRESSURE
+            ],
+            *[
+                self._prefix + "/" + dev + "/" + t.format(n=z)
+                for dev in DISCOVERY_DEVICE_NAMES
+                for z in range(1, max_zones + 1)
+                for t in _DISCOVERY_TOPICS_ZONE
+            ],
+        ]
+        _LOGGER.info("Priming discovery: sending %d get requests", len(topics))
+        for topic in topics:
+            if self._stopping:
+                return
+            await mqtt.async_publish(self._hass, topic + "/get", "?1")
 
     def async_stop(self) -> None:
+        self._stopping = True
         if self._unsub:
             self._unsub()
             self._unsub = None
+        for task in self._bg_tasks:
+            task.cancel()
+        self._bg_tasks.clear()
+
+    def _schedule_task(self, coro, name: str) -> None:
+        task = self._hass.async_create_background_task(coro, name)
+        self._bg_tasks.append(task)
 
     @property
     def mqtt_values(self) -> dict[str, dict[str, Any]]:
@@ -102,6 +156,57 @@ class EbusdCoordinator:
         )
         if entities:
             listener(entities)
+            if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+                self._schedule_task(self._prime_values(entities), "ebusd prime values")
+
+    def _collect_read_topics(self, entities: list[DiscoveredEntity]) -> set[str]:
+        """Collect all unique read topics from discovered entities."""
+        topics: set[str] = set()
+        for entity in entities:
+            if isinstance(entity, DiscoveredPressureSensor):
+                topics.add(entity.topic.read_topic)
+                continue
+            if isinstance(entity, DiscoveredWaterHeater):
+                topic_attrs = [
+                    entity.mode,
+                    entity.target_temperature,
+                    entity.current_temperature,
+                    entity.sf_mode,
+                    entity.holiday_start,
+                    entity.holiday_end,
+                    entity.holiday_start_time,
+                    entity.holiday_end_time,
+                ]
+            else:  # DiscoveredClimate
+                topic_attrs = [
+                    entity.mode,
+                    entity.current_temperature,
+                    entity.target_temperature,
+                    entity.target_temperature_high,
+                    entity.target_temperature_low,
+                    entity.holiday_start,
+                    entity.holiday_end,
+                    entity.holiday_start_time,
+                    entity.holiday_end_time,
+                    entity.quick_veto_temp,
+                    entity.quick_veto_duration,
+                    entity.quick_veto_end_date,
+                    entity.quick_veto_end_time,
+                ]
+            for cfg in topic_attrs:
+                if cfg is not None:
+                    topics.add(cfg.read_topic)
+        return topics
+
+    async def _prime_values(self, entities: list[DiscoveredEntity]) -> None:
+        """Publish ?1 to /get topics to prime polling priority for all known values."""
+        topics = self._collect_read_topics(entities)
+        for topic in topics:
+            if self._stopping:
+                return
+            get_topic = f"{topic}/get"
+            _LOGGER.debug("Priming value: %s", get_topic)
+            await mqtt.async_publish(self._hass, get_topic, "?1")
 
     @callback
     def _handle_message(self, msg: mqtt.ReceiveMessage) -> None:
@@ -109,7 +214,7 @@ class EbusdCoordinator:
         if len(parts) < 3:
             return
         device, msg_name = parts[1], parts[2]
-        if device in ("global", "Broadcast"):
+        if device in ("global", "Broadcast") or msg.topic.endswith("/get"):
             return
 
         try:
@@ -135,3 +240,5 @@ class EbusdCoordinator:
         _LOGGER.debug("Discovered entities: %s", sorted(e.name for e in entities))
         for listener in self._listeners:
             listener(entities)
+        if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+            self._schedule_task(self._prime_values(entities), "ebusd prime values")

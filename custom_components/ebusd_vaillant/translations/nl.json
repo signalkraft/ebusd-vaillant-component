@@ -1,0 +1,54 @@
+{
+  "entity": {
+    "water_heater": {
+      "ebusd_water_heater": {
+        "state": {
+          "auto": "Automatisch",
+          "day": "Handmatig",
+          "boost": "Boost"
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "ebusd Vaillant",
+        "description": "Configureer de ebusd MQTT-integratie. Zorg ervoor dat de MQTT-integratie eerst is ingesteld.",
+        "data": {
+          "name": "Apparaatnaam",
+          "mqtt_prefix": "MQTT-onderwerpvoorvoegsel"
+        },
+        "data_description": {
+          "name": "Naam weergegeven in entiteitslabels, bv. \"Vaillant\" produceert \"Vaillant Zone 1\"",
+          "mqtt_prefix": "Het hoofdonderwerp waar ebusd naar publiceert (standaard: ebusd)"
+        }
+      }
+    },
+    "error": {
+      "mqtt_not_available": "De MQTT-integratie is niet beschikbaar. Stel deze eerst in."
+    },
+    "abort": {
+      "already_configured": "Dit ebusd-voorvoegsel is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configureer ebusd Vaillant",
+        "data": {
+          "away_mode_duration": "Standaard afwezigheidsmodusduur (dagen)",
+          "quick_veto_duration": "Standaard snel veto-duur (uren)",
+          "max_zones": "Aantal zones",
+          "prime_poll_values": "Apparaten ontdekken bij opstarten"
+        },
+        "data_description": {
+          "away_mode_duration": "Aantal dagen dat de afwezigheidsmodus duurt wanneer geactiveerd (standaard: 7)",
+          "quick_veto_duration": "Aantal uren dat het snelle veto duurt wanneer geactiveerd (standaard: 3)",
+          "max_zones": "Beperkt hoeveel zone-entiteiten worden aangemaakt (standaard: 4)",
+          "prime_poll_values": "Probeert typische MQTT-onderwerpnamen op te vragen om waarden direct bij het opstarten te tonen. Indien uitgeschakeld, worden entiteiten beschikbaar zodra MQTT-waarden worden gepubliceerd (standaard: aan)"
+        }
+      }
+    }
+  }
+}

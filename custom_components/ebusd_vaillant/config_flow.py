@@ -18,11 +18,13 @@ from .const import (
     CONF_MAX_ZONES,
     CONF_MQTT_PREFIX,
     CONF_NAME,
+    CONF_PRIME_VALUES,
     CONF_QUICK_VETO_DURATION,
     DEFAULT_AWAY_MODE_DURATION,
     DEFAULT_MAX_ZONES,
     DEFAULT_MQTT_PREFIX,
     DEFAULT_NAME,
+    DEFAULT_PRIME_VALUES,
     DEFAULT_QUICK_VETO_DURATION,
     DOMAIN,
 )
@@ -94,6 +96,10 @@ class EbusdVaillantOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_MAX_ZONES,
                     default=self._config_entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
-                ): vol.In([1, 2, 3, 4]),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=4)),
+                vol.Optional(
+                    CONF_PRIME_VALUES,
+                    default=self._config_entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES),
+                ): bool,
             }
         )

@@ -1,0 +1,54 @@
+{
+  "entity": {
+    "water_heater": {
+      "ebusd_water_heater": {
+        "state": {
+          "auto": "Auto",
+          "day": "Manuell",
+          "boost": "Boost"
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "ebusd Vaillant",
+        "description": "Konfiguriere die ebusd MQTT-Integration. Stelle sicher, dass die MQTT-Integration zuerst eingerichtet ist.",
+        "data": {
+          "name": "Gerätename",
+          "mqtt_prefix": "MQTT-Topic-Präfix"
+        },
+        "data_description": {
+          "name": "Name, der in Entitätsbezeichnungen angezeigt wird, z.B. \"Vaillant\" erzeugt \"Vaillant Zone 1\"",
+          "mqtt_prefix": "Das Root-Topic, unter dem ebusd veröffentlicht (Standard: ebusd)"
+        }
+      }
+    },
+    "error": {
+      "mqtt_not_available": "Die MQTT-Integration ist nicht verfügbar. Bitte richte sie zuerst ein."
+    },
+    "abort": {
+      "already_configured": "Dieses ebusd-Präfix ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ebusd Vaillant konfigurieren",
+        "data": {
+          "away_mode_duration": "Standard-Abwesenheitsdauer (Tage)",
+          "quick_veto_duration": "Standard-Schnellkorrektur-Dauer (Stunden)",
+          "max_zones": "Anzahl der Zonen",
+          "prime_poll_values": "Geräte beim Start erkennen"
+        },
+        "data_description": {
+          "away_mode_duration": "Anzahl der Tage, die der Abwesenheitsmodus beim Aktivieren dauert (Standard: 7)",
+          "quick_veto_duration": "Anzahl der Stunden, die die Schnellkorrektur beim Auslösen dauert (Standard: 3)",
+          "max_zones": "Begrenzt die Anzahl der erstellten Zonen-Entitäten (Standard: 4)",
+          "prime_poll_values": "Versucht, typische MQTT-Topic-Namen abzufragen, um Werte sofort beim Start anzuzeigen. Wenn deaktiviert, werden Entitäten verfügbar, sobald MQTT-Werte veröffentlicht werden (Standard: an)"
+        }
+      }
+    }
+  }
+}

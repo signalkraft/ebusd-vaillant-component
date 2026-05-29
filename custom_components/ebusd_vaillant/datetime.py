@@ -107,6 +107,8 @@ async def async_setup_entry(
 
 
 class EbusdQuickVetoEndEntity(DateTimeEntity):
+    """Datetime entity showing when the quick veto expires on a heating zone."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
 
@@ -159,9 +161,11 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
             self._attr_native_value = None
             return
         try:
-            self._attr_native_value = datetime.strptime(
-                f"{self._end_date} {self._end_time}", f"{_DATE_FMT} {_TIME_FMT}"
-            ).replace(tzinfo=UTC)
+            dt = datetime.strptime(f"{self._end_date} {self._end_time}", f"{_DATE_FMT} {_TIME_FMT}")
+            if dt.replace(tzinfo=UTC) < datetime.now(UTC):
+                self._attr_native_value = None
+                return
+            self._attr_native_value = dt.replace(tzinfo=UTC)
         except ValueError:
             self._attr_native_value = None
 
@@ -170,6 +174,8 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
 
 
 class EbusdHolidayEntity(DateTimeEntity):
+    """Datetime entity for holiday start/end dates on a heating zone or hot water circuit."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
     _config: DiscoveredClimate | DiscoveredWaterHeater

@@ -1,4 +1,4 @@
-# ebusd Setup
+# Hardware Setup
 
 This page covers running ebusd alongside Home Assistant and the required MQTT
 broker using Docker Compose.
@@ -8,8 +8,8 @@ broker using Docker Compose.
 This guide assumes:
 
 1. [eBUS Adapter Shield C6 Stick Edition](https://adapter.ebusd.eu/v5-c6/stick.en.html) connected to your eBUS and you WIFI
-   a. You'll need the `ebusd device string`, for example `ens:192.168.1.10:9999`
-   b. The other settings on the adapter can remain on their default values
+    1. You'll need the `ebusd device string`, for example `ens:192.168.1.10:9999`
+    2. The other settings on the adapter can remain on their default values
 2. Home Assistant running on the same network, in Docker
 
 You will need to modify the parameters and how you run ebusd, if your setup is different.
@@ -23,7 +23,7 @@ your existing Vaillant gateway, and splitting that connection into two connectio
 
 You don't need the Vaillant gateway, it's just easiest to get [access to its eBUS terminal](https://community.openenergymonitor.org/t/vaillant-ebus-hardware-adapter-ebusd-software-thread/24176/452).
 
-Next, connect to the default eBUS adapter WIFI `EBUS` and open [http://192.168.4.1/](http://192.168.4.1/).
+After powering everything back on, connect to the default eBUS adapter WIFI `EBUS` and open [http://192.168.4.1/](http://192.168.4.1/).
 
 Configure your WIFI in the Config tab under `WIFI station/client` then save & reboot the adapter.
 You shouldn't need to change any other settings.
@@ -82,7 +82,9 @@ services:
 
 In Home Assistant, [you need to set up the MQTT integration](https://my.home-assistant.io/redirect/config_flow_start/?domain=mqtt) with the server set to `mosquitto` and the rest of the fields
 on their default values. The ebusd Home Assistant integration isn't needed, due to `EBUSD_MQTTINT: "/etc/ebusd/mqtt-hassio.cfg"`.
-You should see several `ebusd` entities appearing within a few seconds.
+You should see several `ebusd` entities appearing in the MQTT integration within a few seconds.
+
+Afterward, you can continue with the [component setup](index.md#installation).
 
 ## Troubleshooting
 

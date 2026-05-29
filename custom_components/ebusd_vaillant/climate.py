@@ -78,6 +78,8 @@ async def async_setup_entry(
 
 
 class EbusdClimateEntity(ClimateEntity):
+    """Climate entity for a heating zone: target temperature, HVAC mode, and boost/away presets."""
+
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_preset_modes = [PRESET_NONE, PRESET_BOOST, PRESET_AWAY]
     _attr_has_entity_name = True
