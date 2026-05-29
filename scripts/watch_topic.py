@@ -24,6 +24,8 @@ def parse_args():
     )
     p.add_argument("--broker", default=BROKER)
     p.add_argument("--port", type=int, default=PORT)
+    p.add_argument("--username", default=None)
+    p.add_argument("--password", default=None)
     p.add_argument("--timeout", type=int, default=0, help="Exit after N seconds (0 = run forever)")
     return p.parse_args()
 
@@ -58,6 +60,10 @@ def main():
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+
+    if args.username:
+        client.username_pw_set(args.username, args.password)
+
     client.connect(args.broker, args.port)
     client.loop_start()
 

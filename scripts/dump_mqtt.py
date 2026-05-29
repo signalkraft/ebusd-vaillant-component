@@ -3,6 +3,7 @@
 # dependencies = ["paho-mqtt>=2"]
 # ///
 
+import argparse
 import json
 import time
 from collections import defaultdict
@@ -15,6 +16,14 @@ PREFIX = "ebusd"
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description="Dump all ebusd MQTT topics")
+    p.add_argument("--broker", default=BROKER)
+    p.add_argument("--port", type=int, default=PORT)
+    p.add_argument("--username", default=None)
+    p.add_argument("--password", default=None)
+    p.add_argument("--timeout", type=int, default=3, help="Seconds to collect")
+    args = p.parse_args()
+
     messages: list[tuple[str, object]] = []
 
     def on_message(_client, _userdata, msg):
@@ -29,11 +38,14 @@ def main() -> None:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_message = on_message
 
-    client.connect(BROKER, PORT, 60)
+    if args.username:
+        client.username_pw_set(args.username, args.password)
+
+    client.connect(args.broker, args.port, 60)
     client.subscribe(f"{PREFIX}/#")
     client.loop_start()
 
-    time.sleep(3)
+    time.sleep(args.timeout)
     client.loop_stop()
     client.disconnect()
 

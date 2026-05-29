@@ -23,6 +23,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="Discover ebusd MQTT topics")
     p.add_argument("--broker", default=BROKER)
     p.add_argument("--port", type=int, default=PORT)
+    p.add_argument("--username", default=None)
+    p.add_argument("--password", default=None)
     p.add_argument("--timeout", type=int, default=10, help="Seconds to collect messages")
     p.add_argument("--filter", default=None, help="Only show topics containing this string")
     p.add_argument("--json-only", action="store_true", help="Only show topics with JSON payloads")
@@ -62,6 +64,10 @@ def main():
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+
+    if args.username:
+        client.username_pw_set(args.username, args.password)
+
     client.connect(args.broker, args.port)
     client.loop_start()
 
