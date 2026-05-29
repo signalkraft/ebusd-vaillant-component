@@ -37,11 +37,15 @@
         "title": "Configure ebusd Vaillant",
         "data": {
           "away_mode_duration": "Default away mode duration (days)",
-          "quick_veto_duration": "Default quick veto duration (hours)"
+          "quick_veto_duration": "Default quick veto duration (hours)",
+          "max_zones": "Number of heating zones",
+          "prime_poll_values": "Prime poll values on startup"
         },
         "data_description": {
           "away_mode_duration": "Number of days the away mode lasts when activated (default: 7)",
-          "quick_veto_duration": "Number of hours the quick veto lasts when triggered (default: 3)"
+          "quick_veto_duration": "Number of hours the quick veto lasts when triggered (default: 3)",
+          "max_zones": "Maximum number of heating zones to discover (1-4, default: 4)",
+          "prime_poll_values": "Publish ?1 to /get topics on startup so ebusd polls all values at priority 1 immediately"
         }
       }
     }

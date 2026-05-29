@@ -19,7 +19,7 @@ BASE_MSGS: dict[str, dict] = {
     f"{MQTT_PREFIX}/{DEVICE}/Z1RoomTemp": {"value": {"value": 21.5}},
     f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod": {"value": {"value": "01.01.2015"}},
     f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod": {"value": {"value": "01.01.2015"}},
-    f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate": {"value": {"value": "23.05.2026"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate": {"value": {"value": "15.06.2026"}},
     f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndTime": {"value": {"value": "02:51:00"}},
     f"{MQTT_PREFIX}/{DEVICE}/Z1OpMode": {"value": {"value": "auto"}},
 }
@@ -64,9 +64,10 @@ async def test_all_datetime_entities_discovered(hass, setup_entry):
     assert len(hass.states.async_all("datetime")) == 3
 
 
-async def test_quick_veto_end_state(hass, setup_entry):
+async def test_quick_veto_end_state(hass, setup_entry, freezer):
+    freezer.move_to("2026-06-10")
     await _fire(hass)
-    assert _find_entity(hass, "quick_veto_end").state == "2026-05-23T02:51:00+00:00"
+    assert _find_entity(hass, "quick_veto_end").state == "2026-06-15T02:51:00+00:00"
 
 
 async def test_quick_veto_end_unknown_before_mqtt(hass, setup_entry):
@@ -76,12 +77,13 @@ async def test_quick_veto_end_unknown_before_mqtt(hass, setup_entry):
     assert _find_entity(hass, "quick_veto_end").state == "unknown"
 
 
-async def test_quick_veto_end_updates_on_mqtt(hass, setup_entry):
+async def test_quick_veto_end_updates_on_mqtt(hass, setup_entry, freezer):
+    freezer.move_to("2026-06-10")
     await _fire(hass)
     async_fire_mqtt_message(
         hass,
         f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate",
-        json.dumps({"value": {"value": "24.05.2026"}}),
+        json.dumps({"value": {"value": "20.06.2026"}}),
     )
     async_fire_mqtt_message(
         hass,
@@ -89,7 +91,25 @@ async def test_quick_veto_end_updates_on_mqtt(hass, setup_entry):
         json.dumps({"value": {"value": "10:00:00"}}),
     )
     await hass.async_block_till_done()
-    assert _find_entity(hass, "quick_veto_end").state == "2026-05-24T10:00:00+00:00"
+    assert _find_entity(hass, "quick_veto_end").state == "2026-06-20T10:00:00+00:00"
+
+
+async def test_quick_veto_end_unknown_when_in_past(hass, setup_entry, freezer):
+    """Quick veto end shows unknown when the date is in the past."""
+    freezer.move_to("2026-06-10")
+    await _fire(hass)
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate",
+        json.dumps({"value": {"value": "01.06.2026"}}),
+    )
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndTime",
+        json.dumps({"value": {"value": "00:00:00"}}),
+    )
+    await hass.async_block_till_done()
+    assert _find_entity(hass, "quick_veto_end").state == "unknown"
 
 
 async def test_holiday_start_end_state_without_time(hass, setup_entry):

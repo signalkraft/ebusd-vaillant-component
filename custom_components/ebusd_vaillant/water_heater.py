@@ -55,6 +55,8 @@ async def async_setup_entry(
 
 
 class EbusdWaterHeaterEntity(WaterHeaterEntity):
+    """Water heater for a hot water circuit: temperature, operation mode, away mode, and on/off."""
+
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_has_entity_name = True
     _attr_should_poll = False

@@ -15,6 +15,9 @@ DEFAULT_QUICK_VETO_DURATION = 3
 CONF_MAX_ZONES = "max_zones"
 DEFAULT_MAX_ZONES = 4
 
+CONF_PRIME_VALUES = "prime_poll_values"
+DEFAULT_PRIME_VALUES = True
+
 # ebusd → HA HVAC mode (heating zones: Z1OpMode, Z2OpMode, hmu/SetMode.hcmode)
 EBUSD_TO_HA_HVAC = {
     "auto": "auto",
@@ -33,3 +36,13 @@ HA_TO_EBUSD_HVAC = {
 
 # ebusd → HA water heater operation modes (HwcOpMode)
 HWC_OPERATION_MODES = ["auto", "day", "off"]
+
+# Common ebusd device names to probe for discovery priming.
+# Sending ?1 to these names is harmless (unknown names are silently ignored).
+DISCOVERY_DEVICE_NAMES = ["ctlv3", "ctlv2", "hmu", "bai", "bai00"]
+
+# Minimal topic set needed to trigger entity discovery in _analyze().
+# Once entities are discovered, full priming kicks in via _prime_values().
+_DISCOVERY_TOPICS_HWC = ["HwcOpMode", "HwcTempDesired"]
+_DISCOVERY_TOPICS_PRESSURE = ["WaterPressure"]
+_DISCOVERY_TOPICS_ZONE = ["Z{n}OpMode", "Z{n}RoomTemp"]

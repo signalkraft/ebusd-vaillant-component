@@ -1,14 +1,26 @@
 [project]
-site_name = "ebusd Vaillant"
+site_url = "https://signalkraft.com/ebusd-vaillant-component/"
+site_name = "ebusd Vaillant Component for Home Assistant"
 site_description = "Home Assistant custom component for Vaillant heating devices over ebusd MQTT"
 repo_url = "https://github.com/signalkraft/ebusd-vaillant-component"
+edit_uri = "edit/main/docs/"
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
-    { "Home" = "index.md" },
-    { "ebusd Setup" = "ebusd.md" },
-    { "MQTT Mapping" = "mapping.md" },
-    { "Capturing Test Data" = "data-capture.md" },
+    { "Setup" = [
+        "index.md",
+        "ebusd.md",
+    ] },
+    { "Component" = [
+        "entities.md",
+        "options.md",
+        "services.md",
+    ] },
+    { "Contributing" = [
+        "development.md",
+        "data-capture.md",
+        "mapping.md",
+    ] },
 ]
 
 [project.extra]
@@ -16,7 +28,14 @@ generator = false
 
 [project.theme]
 logo = "assets/logo.png"
-features = ["content.code.annotate"]
+features = [
+    "navigation.instant",
+    "navigation.sections",
+    "navigation.tracking",
+    "content.action.edit", # Edit this page
+    "content.action.view", # View source of this page
+    "content.code.annotate",
+]
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme)"
