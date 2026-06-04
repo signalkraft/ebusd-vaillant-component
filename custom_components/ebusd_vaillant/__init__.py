@@ -90,7 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device, msg_name = parts[1], parts[2]
                 try:
                     payload = json.loads(msg.payload)
-                except (json.JSONDecodeError, ValueError):
+                except json.JSONDecodeError, ValueError:
                     payload = msg.payload
                 value = _flatten_payload(payload)
                 if value == "" or value is None:
