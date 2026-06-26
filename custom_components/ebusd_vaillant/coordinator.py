@@ -46,6 +46,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressur
             e.target_temperature_low is not None,
             e.holiday_start_time is not None,
             e.holiday_end_time is not None,
+            e.run_data_status is not None,
         )
     if isinstance(e, DiscoveredWaterHeater):
         return (
@@ -192,6 +193,7 @@ class EbusdCoordinator:
                     entity.quick_veto_duration,
                     entity.quick_veto_end_date,
                     entity.quick_veto_end_time,
+                    entity.run_data_status,
                 ]
             for cfg in topic_attrs:
                 if cfg is not None:

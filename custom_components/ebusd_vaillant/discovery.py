@@ -37,6 +37,7 @@ class DiscoveredClimate:
     quick_veto_duration: TopicConfig | None = None
     quick_veto_end_date: TopicConfig | None = None
     quick_veto_end_time: TopicConfig | None = None
+    run_data_status: TopicConfig | None = None
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
@@ -162,6 +163,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hwc_holiday_end": ["HwcHolidayEndPeriod", "HwcHolidayEndDate"],
     "hwc_holiday_start_time": ["HwcHolidayStartTime"],
     "hwc_holiday_end_time": ["HwcHolidayEndTime"],
+    "run_data_status": ["RunDataStatuscode", "Statuscode"],
 }
 
 
@@ -433,6 +435,19 @@ def _analyze(
                 qv_et_field,
             )
 
+            # Resolve run_data_status across all devices (e.g. RunDataStatuscode on hmu,
+            # while the zone is on ctlv2).
+            rs_device: str | None = None
+            rs_msg: str | None = None
+            rs_field: str | None = None
+            for d_id, d_msgs in by_device.items():
+                rs_key, rs_fld = _find_nested(d_msgs, "run_data_status")
+                if rs_key is not None:
+                    rs_device = d_id
+                    rs_msg = rs_key
+                    rs_field = rs_fld
+                    break
+
             entities.append(
                 DiscoveredClimate(
                     device_id=device_id,
@@ -452,6 +467,11 @@ def _analyze(
                     quick_veto_duration=quick_veto_duration,
                     quick_veto_end_date=quick_veto_end_date,
                     quick_veto_end_time=quick_veto_end_time,
+                    run_data_status=(
+                        _topic_config(prefix, rs_device, rs_msg, rs_field, writable=False)
+                        if rs_device and rs_msg
+                        else None
+                    ),
                 )
             )
 

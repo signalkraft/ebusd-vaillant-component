@@ -635,3 +635,64 @@ def test_mixed_zone_and_lowercase_zone_dont_conflict():
     assert climates[1].device_id == "dev_b"
     assert climates[0].mode.read_topic == "ebusd/dev_a/Z1OpMode"
     assert climates[1].mode.read_topic == "ebusd/dev_b/z1OpModeHeating"
+
+
+# ---------------------------------------------------------------------------
+# run_data_status  -  cross-device resolution
+# ---------------------------------------------------------------------------
+
+
+def test_run_data_status_resolved_from_hmu():
+    """RunDataStatuscode on hmu is attached to climates on other devices (ctlv2)."""
+    by_device = {
+        "hmu": {
+            "RunDataStatuscode": {"value": {"value": "cool_compressor_active"}},
+        },
+        "ctlv2": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 22.0}},
+            "Z1DayTemp": {"value": {"value": 21}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    z1 = climates[0]
+    assert z1.run_data_status is not None
+    assert z1.run_data_status.read_topic == "ebusd/hmu/RunDataStatuscode"
+    assert z1.run_data_status.write_topic is None  # read-only
+
+
+def test_run_data_status_none_when_missing():
+    """When no RunDataStatuscode exists anywhere, run_data_status stays None."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Z1DayTemp": {"value": {"value": 21}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    assert climates[0].run_data_status is None
+
+
+def test_run_data_status_resolved_from_statuscode_reech():
+    """Reech-style systems use Statuscode (named-field format)."""
+    by_device = {
+        "hmu": {
+            "Statuscode": {"scode": {"value": "Standby"}},
+        },
+        "bai00": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 21.0}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    z1 = climates[0]
+    assert z1.run_data_status is not None
+    assert z1.run_data_status.read_topic == "ebusd/hmu/Statuscode"
+    assert z1.run_data_status.field == "scode.value"

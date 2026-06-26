@@ -37,6 +37,23 @@ HA_TO_EBUSD_HVAC = {
 # ebusd → HA water heater operation modes (HwcOpMode)
 HWC_OPERATION_MODES = ["auto", "day", "off"]
 
+# Map RunDataStatuscode values from ebusd/hmu to HA HVAC action.
+_STAT_HVAC_ACTION_HEATING = frozenset(
+    {
+        "heat_compressor_active",
+        "heat_prerun",
+        "heat_overrun",
+        "heat_immersion_heater_active",
+    }
+)
+_STAT_HVAC_ACTION_COOLING = frozenset(
+    {
+        "cool_compressor_active",
+        "cool_prerun",
+        "cool_overrun",
+    }
+)
+
 # Common ebusd device names to probe for discovery priming.
 # Sending ?1 to these names is harmless (unknown names are silently ignored).
 DISCOVERY_DEVICE_NAMES = ["ctlv3", "ctlv2", "hmu", "bai", "bai00"]
