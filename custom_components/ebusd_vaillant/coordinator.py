@@ -24,7 +24,7 @@ from .const import (
 )
 from .discovery import (
     DiscoveredClimate,
-    DiscoveredPressureSensor,
+    DiscoveredSensor,
     DiscoveredWaterHeater,
     TopicConfig,
     _analyze,
@@ -33,10 +33,10 @@ from .discovery import (
 
 _LOGGER = logging.getLogger(__name__)
 
-DiscoveredEntity = DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor
+DiscoveredEntity = DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor
 
 
-def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor) -> tuple:
+def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor) -> tuple:
     """Return a signature tuple that changes when an entity gains new topic configuration."""
     if isinstance(e, DiscoveredClimate):
         return (
@@ -164,7 +164,7 @@ class EbusdCoordinator:
         """Collect all unique read topics from discovered entities."""
         topics: set[str] = set()
         for entity in entities:
-            if isinstance(entity, DiscoveredPressureSensor):
+            if isinstance(entity, DiscoveredSensor):
                 topics.add(entity.topic.read_topic)
                 continue
             if isinstance(entity, DiscoveredWaterHeater):

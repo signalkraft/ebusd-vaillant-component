@@ -4,10 +4,10 @@ import pytest
 
 from custom_components.ebusd_vaillant.discovery import (
     DiscoveredClimate,
-    DiscoveredPressureSensor,
+    DiscoveredSensor,
     DiscoveredWaterHeater,
     _analyze,
-    _find_nested,
+    _find_topic,
     _infer_field,
     _resolve_key,
 )
@@ -28,9 +28,7 @@ def test_entity_types_are_valid(data_file):
     prefix, by_device = data_file
     entities = _analyze(by_device, prefix)
     for entity in entities:
-        assert isinstance(
-            entity, DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor
-        )
+        assert isinstance(entity, DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
 
 
 def test_entities_have_name_and_device_id(data_file):
@@ -170,45 +168,44 @@ def test_resolve_key_z_cooling_manual_temp():
     assert _resolve_key(msgs, "zone_cooling_temp", n=1) == "Z1CoolingManualTemp"
 
 
-def test_resolve_key_pressure_variants():
+# ---------------------------------------------------------------------------
+# _find_topic
+# ---------------------------------------------------------------------------
+
+_PRESSURE_KEYS = ["WaterPressure", "DisplaySystemPressure"]
+
+
+def test_find_topic_top_level_first_key():
     msgs = {"WaterPressure": {"pressv": {"value": 1.7}}}
-    assert _resolve_key(msgs, "pressure") == "WaterPressure"
-    msgs2 = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
-    assert _resolve_key(msgs2, "pressure") == "DisplaySystemPressure"
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "WaterPressure"
+    assert field == "pressv.value"
+
+
+def test_find_topic_top_level_second_key():
+    msgs = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "DisplaySystemPressure"
+    assert field == "pressv.value"
+
+
+def test_find_topic_nested_fallback():
+    msgs = {"State07": {"power": {"value": 0}, "DisplaySystemPressure": {"value": 1.7}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "State07"
+    assert field == "DisplaySystemPressure.value"
+
+
+def test_find_topic_no_match():
+    msgs = {"State07": {"power": {"value": 0}, "energy": {"value": 0}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key is None
+    assert field is None
 
 
 # ---------------------------------------------------------------------------
 # _find_nested
 # ---------------------------------------------------------------------------
-
-
-def test_find_nested_top_level_pressure():
-    """Top-level WaterPressure returns (key, field)."""
-    msgs = {"WaterPressure": {"pressv": {"value": 1.7}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "WaterPressure"
-    assert field == "pressv.value"
-
-
-def test_find_nested_nested_display_pressure():
-    """DisplaySystemPressure nested inside State07 is found."""
-    msgs = {
-        "State07": {
-            "power": {"value": 0},
-            "DisplaySystemPressure": {"value": 1.7},
-        }
-    }
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "State07"
-    assert field == "DisplaySystemPressure.value"
-
-
-def test_find_nested_nested_missing():
-    """No pressure key anywhere returns (None, None)."""
-    msgs = {"State07": {"power": {"value": 0}, "energy": {"value": 0}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key is None
-    assert field is None
 
 
 def test_find_nested_via_state07_discovers_pressure_sensor():
@@ -222,12 +219,25 @@ def test_find_nested_via_state07_discovers_pressure_sensor():
         }
     }
     entities = _analyze(by_device, "ebusd")
-    sensors = [e for e in entities if isinstance(e, DiscoveredPressureSensor)]
+    sensors = [
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    ]
     assert len(sensors) == 1
     ps = sensors[0]
     assert ps.device_id == "hmu"
     assert ps.topic.read_topic == "ebusd/hmu/State07"
     assert ps.topic.field == "DisplaySystemPressure.value"
+
+
+def test_sensor_pattern_second_key_used_when_first_absent():
+    """When first candidate topic is absent, second candidate is used (top-level)."""
+    by_device = {"hmu": {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}}
+    entities = _analyze(by_device, "ebusd")
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
+    assert ps.topic.read_topic == "ebusd/hmu/DisplaySystemPressure"
+    assert ps.topic.field == "pressv.value"
 
 
 def test_find_nested_prefers_top_level():
@@ -241,24 +251,20 @@ def test_find_nested_prefers_top_level():
         }
     }
     entities = _analyze(by_device, "ebusd")
-    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
     assert ps.topic.read_topic == "ebusd/ctlv2/WaterPressure"
     assert ps.topic.field == "pressv.value"
-
-
-def test_find_nested_top_level_display_pressure():
-    """Top-level DisplaySystemPressure is found directly."""
-    msgs = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "DisplaySystemPressure"
-    assert field == "pressv.value"
 
 
 def test_rmalbrecht_discovers_pressure_from_state07():
     """Real-world scenario: pressure inside hmu.State07 is discovered."""
     prefix, by_device = load_data_file(DATA_DIR / "rmalbrecht.yml")
     entities = _analyze(by_device, prefix)
-    sensors = [e for e in entities if isinstance(e, DiscoveredPressureSensor)]
+    sensors = [
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    ]
     assert len(sensors) == 1
     ps = sensors[0]
     assert ps.device_id == "hmu"

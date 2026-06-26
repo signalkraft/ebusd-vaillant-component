@@ -44,11 +44,15 @@ class DiscoveredClimate:
 
 
 @dataclass
-class DiscoveredPressureSensor:
+class DiscoveredSensor:
     device_id: str
     key: str
     name: str
     topic: TopicConfig
+    device_class: str | None
+    state_class: str
+    unit: str | None
+    unique_id_prefix: str
 
 
 @dataclass
@@ -120,7 +124,6 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
         "HwcStorageTempTop",
         "DisplayedHwcStorageTemp",
     ],
-    "pressure": ["WaterPressure", "DisplaySystemPressure"],
     "zone_op_mode": [
         "Z{n}OpMode",
         "z{n}OpModeHeating",
@@ -167,6 +170,79 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
 }
 
 
+@dataclass(frozen=True)
+class SensorConfig:
+    """Descriptor for an auto-discovered numeric sensor.
+
+    topic_keys: ordered tuple of MQTT topic names — first found wins.
+    key: optional override for the entity key suffix (defaults to topic_keys[0].lower()).
+    unique_id_prefix: prefix used to build the entity unique_id.
+    """
+
+    topic_keys: tuple[str, ...]
+    name: str
+    state_class: str
+    unit: str | None = None
+    device_class: str | None = None
+    key: str | None = None
+    unique_id_prefix: str = "ebusd_sensor"
+
+
+def _power(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement", "kW", "power")
+
+
+def _energy(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "total_increasing", "kWh", "energy")
+
+
+def _cop(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement")
+
+
+def _pressure(topics: tuple[str, ...], name: str, key: str) -> SensorConfig:
+    return SensorConfig(
+        topics,
+        name,
+        "measurement",
+        "bar",
+        "pressure",
+        key=key,
+        unique_id_prefix="ebusd_pressure",
+    )
+
+
+# Sensors auto-discovered when a matching ebusd topic is present.
+# HA Energy dashboard compatible: cumulative kWh values use total_increasing.
+_SENSOR_CONFIGS: list[SensorConfig] = [
+    _pressure(("WaterPressure", "DisplaySystemPressure"), "Water Pressure", "pressure"),
+    _power("PowerConsumptionHmu", "Heat Pump Electrical Power"),
+    _power("CurrentConsumedPower", "Electrical Power Consumed"),
+    _power("CurrentYieldPower", "Heat Power Generated"),
+    _energy("TotalEnergyUsage", "Consumed Electrical Energy"),
+    _energy("ConsumptionTotal", "Total Electrical Consumption"),
+    _energy("YieldHc", "Heat Generated Heating"),
+    _energy("YieldHwc", "Heat Generated Domestic Hot Water"),
+    _energy("YieldCooling", "Heat Generated Cooling"),
+    _energy("YieldTotal", "Earned Environment Energy"),
+    _energy("SolarYieldTotal", "Solar Energy Generated"),
+    _energy("PrEnergySumHc", "Consumed Electrical Energy Heating"),
+    _energy("PrEnergySumHwc", "Consumed Electrical Energy Domestic Hot Water"),
+    _energy("YieldHcDay", "Heat Generated Heating Today"),
+    _energy("YieldHwcDay", "Heat Generated Domestic Hot Water Today"),
+    _energy("YieldCoolDay", "Heat Generated Cooling Today"),
+    _energy("YieldHcMonth", "Heat Generated Heating This Month"),
+    _energy("YieldHwcMonth", "Heat Generated Domestic Hot Water This Month"),
+    _energy("YieldCoolingMonth", "Heat Generated Cooling This Month"),
+    _cop("CopHc", "COP Heating"),
+    _cop("CopHcMonth", "COP Heating This Month"),
+    _cop("CopHwc", "COP Domestic Hot Water"),
+    _cop("CopHwcMonth", "COP Domestic Hot Water This Month"),
+    _cop("CopCooling", "COP Cooling"),
+    _cop("CopCoolingMonth", "COP Cooling This Month"),
+]
+
+
 def _resolve_key(msgs: dict[str, Any], role: str, **fmt_kwargs: Any) -> str | None:
     """Resolve a message role to an actual key present in msgs.
 
@@ -186,33 +262,41 @@ def _resolve_key(msgs: dict[str, Any], role: str, **fmt_kwargs: Any) -> str | No
     return None
 
 
-def _find_nested(
-    msgs: dict[str, Any], role: str, **fmt_kwargs: Any
-) -> tuple[str | None, str | None]:
-    """Resolve a role to a (msg_key, field_path) pair, searching inside
-    multi-field messages when no top-level key matches.
+def _find_topic(msgs: dict[str, Any], patterns: list[str]) -> tuple[str | None, str | None]:
+    """Find the first matching topic for a list of candidate names.
 
-    Tries top-level key match first via _resolve_key.  If that fails,
-    iterates through all multi-field messages and checks their sub-keys.
-    Returns (None, None) when nothing matches.
+    At top level: tries every pattern in exact match first, then every pattern
+    in case-insensitive match — so an exact match on a later pattern wins over
+    a case-insensitive match on an earlier one. Falls back to searching the
+    candidates as sub-fields inside multi-value messages.
+    Returns (msg_key, field_path) or (None, None).
     """
-    top_key = _resolve_key(msgs, role, **fmt_kwargs)
-    if top_key is not None:
-        return top_key, _infer_field(msgs[top_key])
+    for pat in patterns:
+        if pat in msgs:
+            return pat, _infer_field(msgs[pat])
+    lower_map = {k.lower(): k for k in msgs}
+    for pat in patterns:
+        actual = lower_map.get(pat.lower())
+        if actual is not None:
+            return actual, _infer_field(msgs[actual])
 
-    patterns = _ROLE_PATTERNS[role]
     for msg_name, payload in msgs.items():
         if not isinstance(payload, dict):
             continue
+        low_payload = {k.lower(): k for k in payload}
         for pat in patterns:
-            sub_key_lookup = pat.format(**fmt_kwargs)
-            if sub_key_lookup in payload:
-                return msg_name, f"{sub_key_lookup}.value"
-            low_payload = {k.lower(): k for k in payload}
-            if sub_key_lookup.lower() in low_payload:
-                actual_key = low_payload[sub_key_lookup.lower()]
-                return msg_name, f"{actual_key}.value"
+            sub = pat if pat in payload else low_payload.get(pat.lower())
+            if sub is not None:
+                return msg_name, f"{sub}.value"
     return None, None
+
+
+def _find_nested(
+    msgs: dict[str, Any], role: str, **fmt_kwargs: Any
+) -> tuple[str | None, str | None]:
+    """Resolve a role to a (msg_key, field_path) pair."""
+    patterns = [p.format(**fmt_kwargs) for p in _ROLE_PATTERNS[role]]
+    return _find_topic(msgs, patterns)
 
 
 def _topic_config(
@@ -233,25 +317,11 @@ def _analyze(
     prefix: str,
     display_name: str = "Vaillant",
     max_zones: int = 4,
-) -> list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor]:
+) -> list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor]:
     """Build a list of discovered entities from per-device message dicts."""
-    entities: list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor] = []
+    entities: list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor] = []
 
     for device_id, msgs in by_device.items():
-        # --- Water pressure sensor ---
-        pressure_key, pressure_field = _find_nested(msgs, "pressure")
-        if pressure_key:
-            entities.append(
-                DiscoveredPressureSensor(
-                    device_id=device_id,
-                    key=f"{device_id}_pressure",
-                    name=f"{display_name} Water Pressure",
-                    topic=_topic_config(
-                        prefix, device_id, pressure_key, pressure_field, writable=False
-                    ),
-                )
-            )
-
         # --- Water heater: HwcOpMode + HwcTempDesired required ---
         hwc_op_key = _resolve_key(msgs, "hwc_op_mode")
         hwc_target_key = _resolve_key(msgs, "hwc_target_temp")
@@ -472,6 +542,26 @@ def _analyze(
                         if rs_device and rs_msg
                         else None
                     ),
+                )
+            )
+
+        # --- Sensors (pressure, energy, power, COP) ---
+        for pattern in _SENSOR_CONFIGS:
+            found_key, found_field = _find_topic(msgs, list(pattern.topic_keys))
+            if found_key is None:
+                continue
+
+            key_suffix = pattern.key or pattern.topic_keys[0].lower()
+            entities.append(
+                DiscoveredSensor(
+                    device_id=device_id,
+                    key=f"{device_id}_{key_suffix}",
+                    name=f"{display_name} {pattern.name}",
+                    topic=_topic_config(prefix, device_id, found_key, found_field, writable=False),
+                    device_class=pattern.device_class,
+                    state_class=pattern.state_class,
+                    unit=pattern.unit,
+                    unique_id_prefix=pattern.unique_id_prefix,
                 )
             )
 
