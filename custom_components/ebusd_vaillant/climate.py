@@ -23,6 +23,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    _STAT_HVAC_ACTION_COOLING,
+    _STAT_HVAC_ACTION_HEATING,
     CONF_AWAY_MODE_DURATION,
     CONF_QUICK_VETO_DURATION,
     DEFAULT_AWAY_MODE_DURATION,
@@ -116,6 +118,8 @@ class EbusdClimateEntity(ClimateEntity):
         self._quick_veto_end_date: str | None = None
         self._quick_veto_end_time: str | None = None
 
+        self._run_data_statuscode: str | None = None
+
         features = (
             ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
@@ -151,6 +155,8 @@ class EbusdClimateEntity(ClimateEntity):
             await self._subscribe(
                 self._config.quick_veto_end_time, self._handle_quick_veto_end_time
             )
+        if self._config.run_data_status:
+            await self._subscribe(self._config.run_data_status, self._handle_run_data_statuscode)
 
     async def async_will_remove_from_hass(self) -> None:
         for unsub in self._unsubscribe:
@@ -178,6 +184,11 @@ class EbusdClimateEntity(ClimateEntity):
             val = coordinator.get_current_value(config.target_temperature_low)
             if val is not None:
                 self._handle_target_low(val)
+        if config.run_data_status and not self._config.run_data_status:
+            await self._subscribe(config.run_data_status, self._handle_run_data_statuscode)
+            val = coordinator.get_current_value(config.run_data_status)
+            if val is not None:
+                self._handle_run_data_statuscode(val)
         self._config = config
         self.async_write_ha_state()
 
@@ -197,18 +208,32 @@ class EbusdClimateEntity(ClimateEntity):
         self._unsubscribe.append(unsub)
 
     @callback
+    def _determine_hvac_action(self) -> HVACAction:
+        """Derive hvac_action from current mode and run data status code."""
+        if self._attr_hvac_mode == HVACMode.OFF:
+            return HVACAction.OFF
+        if self._run_data_statuscode in _STAT_HVAC_ACTION_HEATING:
+            return HVACAction.HEATING
+        if self._run_data_statuscode in _STAT_HVAC_ACTION_COOLING:
+            return HVACAction.COOLING
+        if self._attr_hvac_mode == HVACMode.HEAT:
+            return HVACAction.HEATING
+        if self._attr_hvac_mode == HVACMode.COOL:
+            return HVACAction.COOLING
+        if self._attr_hvac_mode == HVACMode.AUTO:
+            return HVACAction.IDLE
+        return HVACAction.OFF
+
+    @callback
     def _handle_mode(self, value: str) -> None:
         ha_mode = EBUSD_TO_HA_HVAC.get(str(value), "off")
         self._attr_hvac_mode = _HA_HVAC_MODE.get(ha_mode, HVACMode.OFF)
-        self._attr_hvac_action = (
-            HVACAction.HEATING
-            if self._attr_hvac_mode == HVACMode.HEAT
-            else HVACAction.COOLING
-            if self._attr_hvac_mode == HVACMode.COOL
-            else HVACAction.IDLE
-            if self._attr_hvac_mode == HVACMode.AUTO
-            else HVACAction.OFF
-        )
+        self._attr_hvac_action = self._determine_hvac_action()
+
+    @callback
+    def _handle_run_data_statuscode(self, value: Any) -> None:
+        self._run_data_statuscode = str(value)
+        self._attr_hvac_action = self._determine_hvac_action()
 
     @callback
     def _handle_current_temp(self, value: Any) -> None:

@@ -3,7 +3,13 @@
 import json
 
 import pytest
-from homeassistant.components.climate import PRESET_AWAY, PRESET_BOOST, PRESET_NONE, HVACMode
+from homeassistant.components.climate import (
+    PRESET_AWAY,
+    PRESET_BOOST,
+    PRESET_NONE,
+    HVACAction,
+    HVACMode,
+)
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_mqtt_message,
@@ -17,6 +23,7 @@ from custom_components.ebusd_vaillant.const import (
 
 MQTT_PREFIX = "ebusd"
 DEVICE = "ctlv2"
+HMU_DEVICE = "hmu"
 
 # Payloads matching vrc720.yml in coordinator wire format.
 # Setpoint messages MUST arrive before Z1OpMode so that _analyze sees the full
@@ -535,3 +542,88 @@ async def test_holiday_target_temps_when_opmode_arrives_last(hass, setup_entry):
     attrs = _climate(hass).attributes
     assert attrs.get("target_temp_high") == 22.0
     assert attrs.get("target_temp_low") == 21.0
+
+
+# ---------------------------------------------------------------------------
+# hvac_action from RunDataStatuscode
+# ---------------------------------------------------------------------------
+
+
+async def _fire_hmu(hass, statuscode: str) -> None:
+    """Fire RunDataStatuscode on the hmu device."""
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{HMU_DEVICE}/RunDataStatuscode",
+        json.dumps({"value": {"value": statuscode}}),
+    )
+    await hass.async_block_till_done()
+
+
+async def test_hvac_action_cooling_from_statuscode(hass, setup_entry):
+    """auto mode + cool_compressor_active → hvac_action = COOLING."""
+    await _fire(hass)
+    await _fire_hmu(hass, "cool_compressor_active")
+    assert _climate(hass).state == HVACMode.AUTO
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING
+
+
+async def test_hvac_action_heating_from_statuscode(hass, setup_entry):
+    """auto mode + heat_compressor_active → hvac_action = HEATING."""
+    await _fire(hass)
+    await _fire_hmu(hass, "heat_compressor_active")
+    assert _climate(hass).state == HVACMode.AUTO
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.HEATING
+
+
+async def test_hvac_action_idle_from_standby(hass, setup_entry):
+    """auto mode + standby → hvac_action = IDLE."""
+    await _fire(hass)
+    await _fire_hmu(hass, "standby")
+    assert _climate(hass).state == HVACMode.AUTO
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.IDLE
+
+
+async def test_hvac_action_off_when_mode_off(hass, setup_entry):
+    """off mode overrides statuscode → hvac_action = OFF."""
+    await _fire(hass)
+    await _fire_hmu(hass, "heat_compressor_active")
+    async_fire_mqtt_message(
+        hass, f"{MQTT_PREFIX}/{DEVICE}/Z1OpMode", json.dumps({"value": {"value": "off"}})
+    )
+    await hass.async_block_till_done()
+    assert _climate(hass).state == HVACMode.OFF
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.OFF
+
+
+async def test_hvac_action_cooling_from_mode_fallback(hass, setup_entry):
+    """cool mode without statuscode → hvac_action = COOLING (fallback)."""
+    await _fire(hass)
+    async_fire_mqtt_message(
+        hass, f"{MQTT_PREFIX}/{DEVICE}/Z1OpMode", json.dumps({"value": {"value": "night"}})
+    )
+    await hass.async_block_till_done()
+    assert _climate(hass).state == HVACMode.COOL
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING
+
+
+async def test_hvac_action_updates_on_statuscode_change(hass, setup_entry):
+    """Changing RunDataStatuscode updates hvac_action."""
+    await _fire(hass)
+    await _fire_hmu(hass, "standby")
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.IDLE
+    await _fire_hmu(hass, "cool_compressor_active")
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING
+
+
+async def test_hvac_action_prerun_maps_to_heating(hass, setup_entry):
+    """heat_prerun → hvac_action = HEATING."""
+    await _fire(hass)
+    await _fire_hmu(hass, "heat_prerun")
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.HEATING
+
+
+async def test_hvac_action_overrun_maps_to_cooling(hass, setup_entry):
+    """cool_overrun → hvac_action = COOLING."""
+    await _fire(hass)
+    await _fire_hmu(hass, "cool_overrun")
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING

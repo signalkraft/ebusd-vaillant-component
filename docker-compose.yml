@@ -2,7 +2,6 @@ services:
     homeassistant:
         ports:
             - "8123:8123"
-        container_name: homeassistant
         image: "homeassistant/home-assistant:stable"
         env_file:
             - ./docker/.env
