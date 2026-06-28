@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,8 +116,9 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
     def __init__(self, hass: HomeAssistant, config: DiscoveredClimate) -> None:
         self.hass = hass
         self._config = config
-        self._attr_name = f"{config.name} Quick Veto End"
+        self._attr_name = "Quick Veto End"
         self._attr_unique_id = f"ebusd_quick_veto_end_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_native_value: datetime | None = None
         self._end_date: str | None = None
         self._end_time: str | None = None
@@ -195,8 +197,9 @@ class EbusdHolidayEntity(DateTimeEntity):
         self._config = config
         self._date_attr = date_attr
         self._time_attr = time_attr
-        self._attr_name = f"{config.name} {name_suffix}"
+        self._attr_name = name_suffix
         self._attr_unique_id = f"ebusd_{unique_id_suffix}_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_native_value: datetime | None = None
         self._date: str | None = None
         self._time: str | None = None

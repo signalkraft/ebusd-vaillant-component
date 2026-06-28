@@ -43,6 +43,14 @@ class DiscoveredClimate:
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
 
 
 @dataclass
@@ -57,6 +65,14 @@ class DiscoveredFlowTempRange:
     min_temp: float = 15.0
     max_temp: float = 75.0
     temp_step: float = 1.0
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
 
 
 @dataclass
@@ -69,6 +85,14 @@ class DiscoveredCoolTempLimit:
     min_temp: float = 15.0
     max_temp: float = 75.0
     temp_step: float = 1.0
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
 
 
 @dataclass
@@ -77,6 +101,14 @@ class DiscoveredPressureSensor:
     key: str
     name: str
     topic: TopicConfig
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
 
 
 @dataclass
@@ -96,6 +128,88 @@ class DiscoveredWaterHeater:
     min_temp: float = 40.0
     max_temp: float = 80.0
     temp_step: float = 1.0
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+def _scan_field(raw: dict[str, Any], field: str) -> str | None:
+    """Extract a string value from a scan message dict.
+
+    ebusd scan payloads arrive in two formats depending on context:
+
+    * **Flat** (raw MQTT JSON from ebusd):
+      ``{"MF": "Vaillant", "ID": "HMU00", ...}``
+    * **Wrapped** (after the coordinator stores the parsed payload, or when
+      test fixtures reconstruct it from YAML dumps):
+      ``{"MF": {"value": "Vaillant"}, "ID": {"value": "HMU00"}, ...}``
+
+    Both are handled transparently.
+    """
+    val = raw.get(field)
+    if val is None:
+        return None
+    if isinstance(val, dict):
+        val = val.get("value")
+    return str(val) if val is not None else None
+
+
+def discover_manufacturer(by_device: dict[str, Any]) -> str | None:
+    """Return the manufacturer string from any ebusd scan.* entry, or None.
+
+    ebusd publishes scan results to ``scan.<hexaddr>`` topics.  The unnamed
+    message (key ``""``) contains a dict with an ``MF`` field, e.g.
+    ``{"MF": "Vaillant", "ID": "HMU00", "SW": "0607", "HW": "5103"}``.
+    All devices on a Vaillant bus report the same manufacturer, so the first
+    match is sufficient.
+    """
+    for dev, msgs in by_device.items():
+        if not dev.lower().startswith("scan."):
+            continue
+        raw = msgs.get("")
+        if isinstance(raw, dict):
+            mf = _scan_field(raw, "MF")
+            if mf:
+                return mf
+    return None
+
+
+def discover_device_meta(by_device: dict[str, Any], device_id: str) -> dict[str, str]:
+    """Return ``{model, sw_version, hw_version}`` for *device_id* from scan data.
+
+    Matches a scan entry by comparing its ``ID`` field to *device_id*
+    case-insensitively: accepts when one starts with the other (e.g.
+    ``"HMU00"`` matches ``device_id="hmu"``).  Returns an empty dict when
+    no match is found so callers can safely use ``dict.get``.
+    """
+    did_lower = device_id.lower()
+    for dev, msgs in by_device.items():
+        if not dev.lower().startswith("scan."):
+            continue
+        raw = msgs.get("")
+        if not isinstance(raw, dict):
+            continue
+        scan_id = _scan_field(raw, "ID") or ""
+        if not scan_id:
+            continue
+        if scan_id.lower().startswith(did_lower) or did_lower.startswith(scan_id.lower()):
+            result: dict[str, str] = {}
+            model = _scan_field(raw, "ID")
+            sw = _scan_field(raw, "SW")
+            hw = _scan_field(raw, "HW")
+            if model:
+                result["model"] = model
+            if sw:
+                result["sw_version"] = sw
+            if hw:
+                result["hw_version"] = hw
+            return result
+    return {}
 
 
 def _get(payload: Any, dot_path: str) -> Any:
@@ -312,7 +426,21 @@ def _analyze(
         else None
     )
 
+    # Discover manufacturer once (all devices on a Vaillant bus share the same MF).
+    _mf = discover_manufacturer(by_device)
+
     for device_id, msgs in by_device.items():
+        # Skip ebusd meta-devices that carry no heating entities.
+        if device_id.lower().startswith("scan."):
+            continue
+
+        # Per-device hardware metadata (model, sw/hw version) from scan data.
+        _meta = discover_device_meta(by_device, device_id)
+        _manufacturer = _mf or ""
+        _model = _meta.get("model", "")
+        _sw = _meta.get("sw_version", "")
+        _hw = _meta.get("hw_version", "")
+
         # --- Water pressure sensor ---
         pressure_key, pressure_field = _find_nested(msgs, "pressure")
         if pressure_key:
@@ -324,6 +452,13 @@ def _analyze(
                     topic=_topic_config(
                         prefix, device_id, pressure_key, pressure_field, writable=False
                     ),
+                    device_key=prefix,
+                    device_name=display_name,
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
                 )
             )
 
@@ -386,6 +521,13 @@ def _analyze(
                         if hwc_h_et_key
                         else None
                     ),
+                    device_key=f"{device_id}_hwc",
+                    device_name=f"{display_name} Hot Water",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
                 )
             )
 
@@ -417,6 +559,13 @@ def _analyze(
                         else None
                     ),
                     run_data_status=run_data_status_cfg,
+                    device_key=f"{device_id}_hc{hc}",
+                    device_name=f"{display_name} Circuit {hc}",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
                 )
             )
 
@@ -438,6 +587,13 @@ def _analyze(
                         prefix, device_id, cool_key, _infer_field(msgs[cool_key])
                     ),
                     run_data_status=run_data_status_cfg,
+                    device_key=f"{device_id}_hc{hc}",
+                    device_name=f"{display_name} Circuit {hc}",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
                 )
             )
 
@@ -596,6 +752,13 @@ def _analyze(
                     has_quick_veto=has_quick_veto,
                     run_data_status=run_data_status_cfg,
                     hc_status=hc_status_cfg,
+                    device_key=f"{device_id}_zone{zone}",
+                    device_name=f"{display_name} Zone {zone}",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
                 )
             )
 

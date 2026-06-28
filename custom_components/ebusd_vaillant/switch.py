@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,8 +91,9 @@ class EbusdAwayModeSwitch(SwitchEntity):
         self.hass = hass
         self._config = config
         self._away_duration = away_duration
-        self._attr_name = f"{config.name} Away Mode"
+        self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
         self._unsubscribe: list[Any] = []
@@ -170,8 +172,9 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
         self.hass = hass
         self._config = config
         self._away_duration = away_duration
-        self._attr_name = f"{config.name} Away Mode"
+        self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
         self._unsubscribe: list[Any] = []
@@ -251,8 +254,9 @@ class EbusdHwcBoostSwitch(SwitchEntity):
     def __init__(self, hass: HomeAssistant, config: DiscoveredWaterHeater) -> None:
         self.hass = hass
         self._config = config
-        self._attr_name = f"{config.name} Boost"
+        self._attr_name = "Boost"
         self._attr_unique_id = f"ebusd_boost_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._sf_mode: str | None = None
         self._unsubscribe: list[Any] = []
 
@@ -323,8 +327,9 @@ class EbusdQuickVetoSwitch(SwitchEntity):
         self._config = config
         self._quick_veto_temp = quick_veto_temp
         self._quick_veto_duration = quick_veto_duration
-        self._attr_name = f"{config.name} Quick Veto"
+        self._attr_name = "Quick Veto"
         self._attr_unique_id = f"ebusd_quick_veto_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._quick_veto_end_date: str | None = None
         self._quick_veto_end_time: str | None = None
         self._unsubscribe: list[Any] = []
@@ -344,7 +349,7 @@ class EbusdQuickVetoSwitch(SwitchEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:

@@ -1,5 +1,8 @@
 DOMAIN = "ebusd_vaillant"
 
+DEFAULT_MANUFACTURER = "Vaillant"
+DEFAULT_AREA = "Heating"
+
 CONF_MQTT_PREFIX = "mqtt_prefix"
 DEFAULT_MQTT_PREFIX = "ebusd"
 

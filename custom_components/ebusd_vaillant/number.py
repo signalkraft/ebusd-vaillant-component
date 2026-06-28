@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import DiscoveredCoolTempLimit, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,8 +58,9 @@ class EbusdCoolTempLimitEntity(NumberEntity):
         self._config = config
         self._coordinator = coordinator
         self._unsubscribe: list[Any] = []
-        self._attr_name = config.name
+        self._attr_name = "Min Cooling Temperature"
         self._attr_unique_id = f"ebusd_cool_temp_limit_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_native_min_value = config.min_temp
         self._attr_native_max_value = config.max_temp
         self._attr_native_step = config.temp_step

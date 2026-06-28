@@ -6,7 +6,7 @@ import sys
 DASH_RE = re.compile(r"[\u2013\u2014]")
 
 HINT = """en dash (\u2013) or em dash (\u2014) found. Replace with shorter alternatives
-  (e.g. use "--" or rephrase to a shorter sentence)."""
+  (e.g. rephrase to a shorter sentence)."""
 
 
 def main() -> int:

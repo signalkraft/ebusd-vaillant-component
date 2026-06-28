@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import DiscoveredPressureSensor, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,8 +53,9 @@ class EbusdPressureSensor(SensorEntity):
     def __init__(self, hass: HomeAssistant, config: DiscoveredPressureSensor) -> None:
         self.hass = hass
         self._config = config
-        self._attr_name = config.name
+        self._attr_name = "Water Pressure"
         self._attr_unique_id = f"ebusd_pressure_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_native_value: float | None = None
         self._unsubscribe: Any = None
 

@@ -20,6 +20,7 @@ from .const import (
     CONF_MAX_ZONES,
     CONF_PRIME_VALUES,
     CONF_ZONES_WITH_TEMP_ONLY,
+    DEFAULT_MANUFACTURER,
     DEFAULT_MAX_ZONES,
     DEFAULT_PRIME_VALUES,
     DEFAULT_ZONES_WITH_TEMP_ONLY,
@@ -34,6 +35,7 @@ from .discovery import (
     TopicConfig,
     _analyze,
     _get,
+    discover_manufacturer,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -144,6 +146,11 @@ class EbusdCoordinator:
     def _schedule_task(self, coro, name: str) -> None:
         task = self._hass.async_create_background_task(coro, name)
         self._bg_tasks.append(task)
+
+    @property
+    def manufacturer(self) -> str:
+        """Return the discovered manufacturer name, or the default fallback."""
+        return discover_manufacturer(self._by_device) or DEFAULT_MANUFACTURER
 
     @property
     def mqtt_values(self) -> dict[str, dict[str, Any]]:

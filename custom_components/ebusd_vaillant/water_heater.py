@@ -19,6 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION, DOMAIN
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,8 +74,9 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._config = config
         self._coordinator = coordinator
         self._away_duration = away_duration
-        self._attr_name = config.name
+        self._attr_name = None  # primary entity of the Hot Water device; device name is the label
         self._attr_unique_id = f"ebusd_water_heater_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step

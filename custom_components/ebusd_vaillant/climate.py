@@ -34,6 +34,7 @@ from .const import (
     HA_TO_EBUSD_HVAC,
 )
 from .coordinator import EbusdCoordinator
+from .device import build_device_info
 from .discovery import (
     DiscoveredClimate,
     DiscoveredFlowTempRange,
@@ -111,8 +112,9 @@ class EbusdClimateEntity(ClimateEntity):
         self._config = config
         self._away_duration = away_duration
         self._quick_veto_duration = quick_veto_duration
-        self._attr_name = config.name
+        self._attr_name = None  # primary entity of the Zone device; device name is the label
         self._attr_unique_id = f"ebusd_climate_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step
@@ -489,8 +491,9 @@ class EbusdFlowTempRangeEntity(_EbusdSetpointBase):
     ) -> None:
         super().__init__(hass, coordinator)
         self._config = config
-        self._attr_name = config.name
+        self._attr_name = "Heating Flow Temperature"
         self._attr_unique_id = f"ebusd_flow_temp_range_{config.key}"
+        self._attr_device_info = build_device_info(config)
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step

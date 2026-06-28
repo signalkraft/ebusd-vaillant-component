@@ -11,9 +11,17 @@ import yaml
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_MQTT_PREFIX, CONF_NAME, DEFAULT_MQTT_PREFIX, DEFAULT_NAME, DOMAIN
+from .const import (
+    CONF_MQTT_PREFIX,
+    CONF_NAME,
+    DEFAULT_AREA,
+    DEFAULT_MQTT_PREFIX,
+    DEFAULT_NAME,
+    DOMAIN,
+)
 from .coordinator import EbusdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,6 +57,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_start()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_update_options))
+
+    # Register the parent system device so that sub-devices can reference it
+    # via via_device=(DOMAIN, prefix) before their own entities are created.
+    # async_get_or_create is idempotent; repeated calls on reload just update
+    # the existing entry (e.g. with a freshly discovered manufacturer).
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, prefix)},
+        name=display_name,
+        manufacturer=coordinator.manufacturer,
+        suggested_area=DEFAULT_AREA,
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

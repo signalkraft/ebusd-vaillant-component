@@ -12,6 +12,8 @@ from custom_components.ebusd_vaillant.discovery import (
     _find_nested,
     _infer_field,
     _resolve_key,
+    discover_device_meta,
+    discover_manufacturer,
 )
 from tests.conftest import DATA_DIR, load_data_file
 
@@ -830,3 +832,223 @@ def test_zones_with_temp_only_true_keeps_numeric_zero():
     entities = _analyze(by_device, "ebusd", zones_with_temp_only=True)
     climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
     assert len(climates) == 1
+
+
+# ---------------------------------------------------------------------------
+# Device-grouping fields (device_key / device_name / parent_key)
+# ---------------------------------------------------------------------------
+
+
+def test_all_entities_have_device_grouping_fields(data_file):
+    """Every entity produced by _analyze must have non-empty device grouping fields."""
+    prefix, by_device = data_file
+    for entity in _analyze(by_device, prefix):
+        assert entity.device_key, f"{entity!r} missing device_key"
+        assert entity.device_name, f"{entity!r} missing device_name"
+        assert entity.parent_key, f"{entity!r} missing parent_key"
+
+
+def test_zone_device_key_and_name():
+    """Zone entities get their own device (zone N) nested under the prefix parent."""
+    by_device = {
+        "ctlv2": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.device_key == "ctlv2_zone1"
+    assert z1.device_name == "Vaillant Zone 1"
+    assert z1.parent_key == "ebusd"
+
+
+def test_water_heater_device_key_and_name():
+    """Hot water entity gets its own device nested under the prefix parent."""
+    by_device = {
+        "ctlv2": {
+            "HwcOpMode": {"value": {"value": "auto"}},
+            "HwcTempDesired": {"value": {"value": 55}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
+    assert wh.device_key == "ctlv2_hwc"
+    assert wh.device_name == "Vaillant Hot Water"
+    assert wh.parent_key == "ebusd"
+
+
+def test_pressure_sensor_lives_on_parent_device():
+    """Pressure sensor is placed directly on the parent device (device_key == parent_key)."""
+    by_device = {
+        "hmu": {
+            "WaterPressure": {"pressv": {"value": 1.7}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
+    assert ps.device_key == "ebusd"
+    assert ps.device_name == "Vaillant"
+    assert ps.parent_key == "ebusd"
+
+
+def test_circuit_flow_temp_and_cool_temp_share_device_key():
+    """Flow-temp range and cool-temp limit for the same circuit land on the same device."""
+    by_device = {
+        "ctlv2": {
+            "Hc1MinFlowTempDesired": {"value": {"value": 15}},
+            "Hc1MaxFlowTempDesired": {"value": {"value": 75}},
+            "Hc1FlowTemp": {"value": {"value": 35.0}},
+            "Hc1MinCoolTempDesired": {"value": {"value": 18}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd", zones_with_temp_only=False)
+    flow = next(e for e in entities if isinstance(e, DiscoveredFlowTempRange))
+    cool = next(e for e in entities if isinstance(e, DiscoveredCoolTempLimit))
+    assert flow.device_key == cool.device_key == "ctlv2_hc1"
+    assert flow.device_name == cool.device_name == "Vaillant Circuit 1"
+    assert flow.parent_key == cool.parent_key == "ebusd"
+
+
+def test_circuit_device_key_uses_hc_number():
+    """Circuit 2 entities get device_key ending in hc2."""
+    by_device = {
+        "ctlv2": {
+            "Hc2MinFlowTempDesired": {"value": {"value": 15}},
+            "Hc2MaxFlowTempDesired": {"value": {"value": 75}},
+            "Hc2FlowTemp": {"value": {"value": 38.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd", zones_with_temp_only=False)
+    flow = next(e for e in entities if isinstance(e, DiscoveredFlowTempRange))
+    assert flow.device_key == "ctlv2_hc2"
+    assert flow.device_name == "Vaillant Circuit 2"
+
+
+def test_custom_display_name_reflected_in_device_name():
+    """device_name follows the display_name parameter."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "HwcOpMode": {"value": {"value": "auto"}},
+            "HwcTempDesired": {"value": {"value": 55}},
+            "WaterPressure": {"pressv": {"value": 1.5}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd", display_name="My Boiler")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
+    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
+    assert z1.device_name == "My Boiler Zone 1"
+    assert wh.device_name == "My Boiler Hot Water"
+    assert ps.device_name == "My Boiler"
+
+
+# ---------------------------------------------------------------------------
+# discover_manufacturer / discover_device_meta
+# ---------------------------------------------------------------------------
+
+
+def test_discover_manufacturer_from_scan_entry():
+    """discover_manufacturer returns MF from a scan.* entry."""
+    by_device = {"scan.08": {"": {"MF": "Vaillant", "ID": "HMU00", "SW": "0607", "HW": "5103"}}}
+    assert discover_manufacturer(by_device) == "Vaillant"
+
+
+def test_discover_manufacturer_case_insensitive_key():
+    """scan.* key matching is case-insensitive."""
+    by_device = {"Scan.15": {"": {"MF": "Vaillant", "ID": "CTLV2", "SW": "0514", "HW": "1104"}}}
+    assert discover_manufacturer(by_device) == "Vaillant"
+
+
+def test_discover_manufacturer_none_when_no_scan():
+    """Returns None when no scan.* entries exist."""
+    by_device = {
+        "ctlv2": {"Z1OpMode": {"value": {"value": "auto"}}},
+    }
+    assert discover_manufacturer(by_device) is None
+
+
+def test_discover_manufacturer_none_when_no_mf_field():
+    """Returns None when scan entry exists but has no MF field."""
+    by_device = {"scan.08": {"": {"ID": "HMU00"}}}
+    assert discover_manufacturer(by_device) is None
+
+
+def test_discover_device_meta_exact_prefix_match():
+    """HMU00 scan ID matches device_id='hmu' (scan_id.startswith(device_id))."""
+    by_device = {"scan.08": {"": {"MF": "Vaillant", "ID": "HMU00", "SW": "0607", "HW": "5103"}}}
+    meta = discover_device_meta(by_device, "hmu")
+    assert meta == {"model": "HMU00", "sw_version": "0607", "hw_version": "5103"}
+
+
+def test_discover_device_meta_device_id_prefix_match():
+    """device_id='ctlv2' matches scan ID 'CTLV2' (device_id.startswith(scan_id) after lower)."""
+    by_device = {"scan.15": {"": {"MF": "Vaillant", "ID": "CTLV2", "SW": "0514", "HW": "1104"}}}
+    meta = discover_device_meta(by_device, "ctlv2")
+    assert meta["model"] == "CTLV2"
+    assert meta["sw_version"] == "0514"
+    assert meta["hw_version"] == "1104"
+
+
+def test_discover_device_meta_no_match_returns_empty():
+    """No scan entry matching the device_id returns an empty dict."""
+    by_device = {"scan.08": {"": {"MF": "Vaillant", "ID": "HMU00", "SW": "0607", "HW": "5103"}}}
+    assert discover_device_meta(by_device, "bai") == {}
+
+
+def test_discover_device_meta_no_scan_returns_empty():
+    """No scan entries at all returns an empty dict."""
+    by_device = {"ctlv2": {"Z1OpMode": {"value": {"value": "auto"}}}}
+    assert discover_device_meta(by_device, "ctlv2") == {}
+
+
+def test_vrc720_discover_manufacturer(vrc720):
+    """vrc720.yml contains real scan.* entries; manufacturer must be Vaillant."""
+    _, by_device = vrc720
+    assert discover_manufacturer(by_device) == "Vaillant"
+
+
+def test_vrc720_manufacturer_populated_on_entities(vrc720):
+    """All entities from vrc720 should have manufacturer='Vaillant' from scan data."""
+    prefix, by_device = vrc720
+    for entity in _analyze(by_device, prefix):
+        assert entity.manufacturer == "Vaillant", f"{entity!r} has wrong manufacturer"
+
+
+def test_vrc720_discover_device_meta_ctlv2(vrc720):
+    """ctlv2 matches scan.15 ID='CTLV2' → model/sw/hw populated."""
+    _, by_device = vrc720
+    meta = discover_device_meta(by_device, "ctlv2")
+    assert meta.get("model") == "CTLV2"
+    assert meta.get("sw_version") == "0514"
+    assert meta.get("hw_version") == "1104"
+
+
+def test_no_scan_data_falls_back_empty_manufacturer():
+    """Without scan data, manufacturer field is empty string (caller provides fallback)."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.manufacturer == ""  # caller (build_device_info) uses DEFAULT_MANUFACTURER
+
+
+def test_scan_entries_not_emitted_as_entities():
+    """scan.* devices in by_device must not produce any entity."""
+    by_device = {
+        "scan.08": {"": {"MF": "Vaillant", "ID": "HMU00", "SW": "0607", "HW": "5103"}},
+        "Scan.15": {"Id": {"prefix": "21", "year": "22"}},
+        "ctlv2": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    for e in entities:
+        assert not e.device_id.lower().startswith("scan."), f"scan.* entry produced entity: {e!r}"
