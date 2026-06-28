@@ -13,7 +13,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION, DOMAIN
+from .const import (
+    CONF_AWAY_MODE_DURATION,
+    CONF_QUICK_VETO_DURATION,
+    CONF_QUICK_VETO_TEMP,
+    DEFAULT_AWAY_MODE_DURATION,
+    DEFAULT_QUICK_VETO_DURATION,
+    DEFAULT_QUICK_VETO_TEMP,
+    DOMAIN,
+)
 from .coordinator import EbusdCoordinator
 from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
@@ -30,9 +38,12 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities_by_key: dict[
-        str, EbusdAwayModeSwitch | EbusdHwcAwayModeSwitch | EbusdHwcBoostSwitch
+        str,
+        EbusdAwayModeSwitch | EbusdHwcAwayModeSwitch | EbusdHwcBoostSwitch | EbusdQuickVetoSwitch,
     ] = {}
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
+    quick_veto_duration = entry.options.get(CONF_QUICK_VETO_DURATION, DEFAULT_QUICK_VETO_DURATION)
+    quick_veto_temp = entry.options.get(CONF_QUICK_VETO_TEMP, DEFAULT_QUICK_VETO_TEMP)
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -43,6 +54,12 @@ async def async_setup_entry(
                     entity = EbusdAwayModeSwitch(hass, e, away_duration)
                     entities_by_key[key] = entity
                     new.append(entity)
+                if e.has_quick_veto:
+                    veto_key = f"{e.key}_quick_veto"
+                    if veto_key not in entities_by_key:
+                        entity = EbusdQuickVetoSwitch(hass, e, quick_veto_temp, quick_veto_duration)
+                        entities_by_key[veto_key] = entity
+                        new.append(entity)
             elif isinstance(e, DiscoveredWaterHeater):
                 if e.holiday_start and e.holiday_end:
                     key = f"{e.key}_away_mode"
@@ -281,3 +298,101 @@ class EbusdHwcBoostSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         if self._config.sf_mode and self._config.sf_mode.write_topic:
             await self._publish(self._config.sf_mode.write_topic, "auto")
+
+
+_DATE_TIME_FMT = "%d.%m.%Y %H:%M:%S"
+_QUICK_VETO_CANCEL_DATE = "01.01.2015"
+_QUICK_VETO_CANCEL_TIME = "00:00:00"
+
+
+class EbusdQuickVetoSwitch(SwitchEntity):
+    """Switch to activate/cancel quick veto (boost) for a heating zone."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_icon = "mdi:thermometer-chevron-up"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: DiscoveredClimate,
+        quick_veto_temp: float,
+        quick_veto_duration: int,
+    ) -> None:
+        self.hass = hass
+        self._config = config
+        self._quick_veto_temp = quick_veto_temp
+        self._quick_veto_duration = quick_veto_duration
+        self._attr_name = f"{config.name} Quick Veto"
+        self._attr_unique_id = f"ebusd_quick_veto_{config.key}"
+        self._quick_veto_end_date: str | None = None
+        self._quick_veto_end_time: str | None = None
+        self._unsubscribe: list[Any] = []
+
+    async def async_added_to_hass(self) -> None:
+        if self._config.quick_veto_end_date:
+            await self._subscribe(self._config.quick_veto_end_date, self._handle_end_date)
+        if self._config.quick_veto_end_time:
+            await self._subscribe(self._config.quick_veto_end_time, self._handle_end_time)
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._unsubscribe:
+            unsub()
+
+    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+        @callback
+        def _wrap(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except (json.JSONDecodeError, ValueError):
+                payload = msg.payload
+            value = _get(payload, topic_cfg.field)
+            if value is not None:
+                handler(value)
+                self.async_write_ha_state()
+
+        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
+        self._unsubscribe.append(unsub)
+
+    @callback
+    def _handle_end_date(self, value: Any) -> None:
+        self._quick_veto_end_date = str(value)
+
+    @callback
+    def _handle_end_time(self, value: Any) -> None:
+        self._quick_veto_end_time = str(value)
+
+    @property
+    def is_on(self) -> bool:
+        if not self._quick_veto_end_date or not self._quick_veto_end_time:
+            return False
+        try:
+            veto_end = datetime.strptime(
+                f"{self._quick_veto_end_date} {self._quick_veto_end_time}", _DATE_TIME_FMT
+            )
+            return veto_end > datetime.now()
+        except ValueError:
+            return False
+
+    async def _publish(self, topic: str, payload: str) -> None:
+        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
+        await mqtt.async_publish(self.hass, topic, payload)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        qv = self._config.quick_veto_temp
+        if qv and qv.write_topic:
+            await self._publish(qv.write_topic, str(self._quick_veto_temp))
+        qd = self._config.quick_veto_duration
+        if qd and qd.write_topic:
+            await self._publish(qd.write_topic, str(self._quick_veto_duration))
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        qd = self._config.quick_veto_duration
+        if qd and qd.write_topic:
+            await self._publish(qd.write_topic, "0")
+        qed = self._config.quick_veto_end_date
+        if qed and qed.write_topic:
+            await self._publish(qed.write_topic, _QUICK_VETO_CANCEL_DATE)
+        qet = self._config.quick_veto_end_time
+        if qet and qet.write_topic:
+            await self._publish(qet.write_topic, _QUICK_VETO_CANCEL_TIME)

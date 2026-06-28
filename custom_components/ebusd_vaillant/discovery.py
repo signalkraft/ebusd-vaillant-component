@@ -37,10 +37,38 @@ class DiscoveredClimate:
     quick_veto_duration: TopicConfig | None = None
     quick_veto_end_date: TopicConfig | None = None
     quick_veto_end_time: TopicConfig | None = None
+    has_quick_veto: bool = False
     run_data_status: TopicConfig | None = None
+    hc_status: TopicConfig | None = None
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
+
+
+@dataclass
+class DiscoveredFlowTempRange:
+    device_id: str
+    key: str
+    name: str
+    min_flow_temp: TopicConfig  # Hc{n}MinFlowTempDesired
+    max_flow_temp: TopicConfig  # Hc{n}MaxFlowTempDesired
+    current_flow_temp: TopicConfig | None = None  # Hc{n}FlowTemp
+    run_data_status: TopicConfig | None = None
+    min_temp: float = 15.0
+    max_temp: float = 75.0
+    temp_step: float = 1.0
+
+
+@dataclass
+class DiscoveredCoolTempLimit:
+    device_id: str
+    key: str
+    name: str
+    cool_temp: TopicConfig  # Hc{n}MinCoolTempDesired
+    run_data_status: TopicConfig | None = None
+    min_temp: float = 15.0
+    max_temp: float = 75.0
+    temp_step: float = 1.0
 
 
 @dataclass
@@ -107,6 +135,19 @@ def _infer_field(payload: Any) -> str:
     return "value.value"
 
 
+def _is_number(v: Any) -> bool:
+    """Return True when *v* is a valid numeric temperature reading.
+
+    Rejects None, empty strings, empty bytes, and any other non-numeric
+    value that might arrive from ebusd as a placeholder or malformed payload.
+    """
+    try:
+        float(v)
+        return True
+    except TypeError, ValueError:
+        return False
+
+
 # Extensible key-pattern table.
 # Each role maps to an ordered list of candidate key name patterns.
 # "{n}" is replaced with the zone number where applicable.
@@ -164,6 +205,11 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hwc_holiday_start_time": ["HwcHolidayStartTime"],
     "hwc_holiday_end_time": ["HwcHolidayEndTime"],
     "run_data_status": ["RunDataStatuscode", "Statuscode"],
+    "hc_status": ["Hc{n}Status"],
+    "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
+    "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
+    "hc_min_cool_temp": ["Hc{n}MinCoolTempDesired", "Hc{n}MinCoolingTempDesired"],
+    "hc_current_flow_temp": ["Hc{n}FlowTemp", "DisplayedHc{n}FlowTemp", "Hc{n}FlowTempCurrent"],
 }
 
 
@@ -233,9 +279,38 @@ def _analyze(
     prefix: str,
     display_name: str = "Vaillant",
     max_zones: int = 4,
-) -> list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor]:
+    zones_with_temp_only: bool = True,
+) -> list[
+    DiscoveredClimate
+    | DiscoveredWaterHeater
+    | DiscoveredPressureSensor
+    | DiscoveredFlowTempRange
+    | DiscoveredCoolTempLimit
+]:
     """Build a list of discovered entities from per-device message dicts."""
-    entities: list[DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor] = []
+    entities: list[
+        DiscoveredClimate
+        | DiscoveredWaterHeater
+        | DiscoveredPressureSensor
+        | DiscoveredFlowTempRange
+        | DiscoveredCoolTempLimit
+    ] = []
+
+    # Resolve run_data_status once across all devices (e.g. RunDataStatuscode lives on hmu,
+    # not on the zone controller).
+    _rs_device: str | None = None
+    _rs_msg: str | None = None
+    _rs_field: str | None = None
+    for _d_id, _d_msgs in by_device.items():
+        _rs_key, _rs_fld = _find_nested(_d_msgs, "run_data_status")
+        if _rs_key is not None:
+            _rs_device, _rs_msg, _rs_field = _d_id, _rs_key, _rs_fld
+            break
+    run_data_status_cfg = (
+        _topic_config(prefix, _rs_device, _rs_msg, _rs_field, writable=False)
+        if _rs_device and _rs_msg
+        else None
+    )
 
     for device_id, msgs in by_device.items():
         # --- Water pressure sensor ---
@@ -314,6 +389,58 @@ def _analyze(
                 )
             )
 
+        # Heating circuit flow temperature range:
+        # Hc{n}MinFlowTempDesired + Hc{n}MaxFlowTempDesired
+        for hc in range(1, max_zones + 1):
+            min_key = _resolve_key(msgs, "hc_min_flow_temp", n=hc)
+            max_key = _resolve_key(msgs, "hc_max_flow_temp", n=hc)
+            if not min_key or not max_key:
+                continue
+            cur_key, cur_field = _find_nested(msgs, "hc_current_flow_temp", n=hc)
+            if zones_with_temp_only:
+                if not cur_key or not _is_number(_get(msgs.get(cur_key), cur_field)):
+                    continue
+            entities.append(
+                DiscoveredFlowTempRange(
+                    device_id=device_id,
+                    key=f"{device_id}_hc{hc}_flow_temp",
+                    name=f"{display_name} Circuit {hc} Heating Flow Temperature",
+                    min_flow_temp=_topic_config(
+                        prefix, device_id, min_key, _infer_field(msgs[min_key])
+                    ),
+                    max_flow_temp=_topic_config(
+                        prefix, device_id, max_key, _infer_field(msgs[max_key])
+                    ),
+                    current_flow_temp=(
+                        _topic_config(prefix, device_id, cur_key, cur_field, writable=False)
+                        if cur_key
+                        else None
+                    ),
+                    run_data_status=run_data_status_cfg,
+                )
+            )
+
+        # --- Heating circuit min cooling temperature: Hc{n}MinCoolTempDesired ---
+        for hc in range(1, max_zones + 1):
+            cool_key = _resolve_key(msgs, "hc_min_cool_temp", n=hc)
+            if not cool_key:
+                continue
+            if zones_with_temp_only:
+                _cur_key, _cur_field = _find_nested(msgs, "hc_current_flow_temp", n=hc)
+                if not _cur_key or not _is_number(_get(msgs.get(_cur_key), _cur_field)):
+                    continue
+            entities.append(
+                DiscoveredCoolTempLimit(
+                    device_id=device_id,
+                    key=f"{device_id}_hc{hc}_cool_temp",
+                    name=f"{display_name} Circuit {hc} Min Cooling Temperature",
+                    cool_temp=_topic_config(
+                        prefix, device_id, cool_key, _infer_field(msgs[cool_key])
+                    ),
+                    run_data_status=run_data_status_cfg,
+                )
+            )
+
         # --- Zone-based heating: Z{n}OpMode + live Z{n}RoomTemp value required ---
         for zone in range(1, max_zones + 1):
             op_key = _resolve_key(msgs, "zone_op_mode", n=zone)
@@ -321,7 +448,11 @@ def _analyze(
             if not op_key or not room_key:
                 continue
             room_field = _infer_field(msgs.get(room_key))
-            if _get(msgs.get(room_key), room_field) is None:
+            room_val = _get(msgs.get(room_key), room_field)
+            if zones_with_temp_only:
+                if not _is_number(room_val):  # require a real numeric temperature reading
+                    continue
+            elif room_val is None:  # legacy max_zones behavior: skip only if no value at all
                 continue
 
             ct_key = _resolve_key(msgs, "zone_circuit_type", n=zone)
@@ -434,19 +565,14 @@ def _analyze(
                 qv_et_key or f"Z{zone}QuickVetoEndTime",
                 qv_et_field,
             )
+            has_quick_veto = bool(qv_temp_key or qv_dur_key or qv_ed_key or qv_et_key)
 
-            # Resolve run_data_status across all devices (e.g. RunDataStatuscode on hmu,
-            # while the zone is on ctlv2).
-            rs_device: str | None = None
-            rs_msg: str | None = None
-            rs_field: str | None = None
-            for d_id, d_msgs in by_device.items():
-                rs_key, rs_fld = _find_nested(d_msgs, "run_data_status")
-                if rs_key is not None:
-                    rs_device = d_id
-                    rs_msg = rs_key
-                    rs_field = rs_fld
-                    break
+            hc_status_key, hc_status_field = _find_nested(msgs, "hc_status", n=zone)
+            hc_status_cfg = (
+                _topic_config(prefix, device_id, hc_status_key, hc_status_field, writable=False)
+                if hc_status_key
+                else None
+            )
 
             entities.append(
                 DiscoveredClimate(
@@ -467,11 +593,9 @@ def _analyze(
                     quick_veto_duration=quick_veto_duration,
                     quick_veto_end_date=quick_veto_end_date,
                     quick_veto_end_time=quick_veto_end_time,
-                    run_data_status=(
-                        _topic_config(prefix, rs_device, rs_msg, rs_field, writable=False)
-                        if rs_device and rs_msg
-                        else None
-                    ),
+                    has_quick_veto=has_quick_veto,
+                    run_data_status=run_data_status_cfg,
+                    hc_status=hc_status_cfg,
                 )
             )
 

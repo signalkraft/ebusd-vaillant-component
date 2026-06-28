@@ -40,13 +40,15 @@
           "away_mode_duration": "Durée par défaut du mode absence (jours)",
           "quick_veto_duration": "Durée par défaut du veto rapide (heures)",
           "max_zones": "Nombre de zones",
-          "prime_poll_values": "Découvrir les appareils au démarrage"
+          "prime_poll_values": "Découvrir les appareils au démarrage",
+          "zones_with_temp_only": "Uniquement les zones avec une mesure de température"
         },
         "data_description": {
           "away_mode_duration": "Nombre de jours dure le mode absence lorsqu'il est activé (par défaut : 7)",
           "quick_veto_duration": "Nombre d'heures dure le veto rapide lorsqu'il est déclenché (par défaut : 3)",
           "max_zones": "Limite le nombre d'entités de zone créées (par défaut : 4)",
-          "prime_poll_values": "Tente de demander les noms de sujets MQTT typiques pour pouvoir afficher les valeurs immédiatement au démarrage. Si désactivé, les entités deviennent disponibles au fur et à mesure que les valeurs MQTT sont publiées (par défaut : activé)"
+          "prime_poll_values": "Tente de demander les noms de sujets MQTT typiques pour pouvoir afficher les valeurs immédiatement au démarrage. Si désactivé, les entités deviennent disponibles au fur et à mesure que les valeurs MQTT sont publiées (par défaut : activé)",
+          "zones_with_temp_only": "Lorsqu'activé (par défaut), seules les entités climatiques pour les zones qui signalent une température actuelle sont créées. Lorsque désactivé, des entités sont créées pour toutes les zones jusqu'au maximum configuré."
         }
       }
     }

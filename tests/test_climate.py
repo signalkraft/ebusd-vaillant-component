@@ -627,3 +627,76 @@ async def test_hvac_action_overrun_maps_to_cooling(hass, setup_entry):
     await _fire(hass)
     await _fire_hmu(hass, "cool_overrun")
     assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING
+
+
+# ---------------------------------------------------------------------------
+# hvac_action gated by Hc{n}Status (per-zone active flag)
+# ---------------------------------------------------------------------------
+
+
+async def _fire_hc_status(hass, zone: int, value: int) -> None:
+    """Fire Hc{n}Status on the ctlv2 device."""
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Hc{zone}Status",
+        json.dumps({"value": {"value": value}}),
+    )
+    await hass.async_block_till_done()
+
+
+async def test_hvac_action_heating_when_hc_status_active(hass, setup_entry):
+    """Hc1Status=1 + heat_compressor_active → HEATING for this zone."""
+    await _fire(hass)
+    await _fire_hmu(hass, "heat_compressor_active")
+    await _fire_hc_status(hass, 1, 1)
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.HEATING
+
+
+async def test_hvac_action_idle_when_hc_status_inactive(hass, setup_entry):
+    """Hc1Status=0 + heat_compressor_active → IDLE; this zone is not contributing."""
+    await _fire(hass)
+    await _fire_hmu(hass, "heat_compressor_active")
+    await _fire_hc_status(hass, 1, 0)
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.IDLE
+
+
+async def test_hvac_action_cooling_when_hc_status_active(hass, setup_entry):
+    """Hc1Status=1 + cool_compressor_active → COOLING for this zone."""
+    await _fire(hass)
+    await _fire_hmu(hass, "cool_compressor_active")
+    await _fire_hc_status(hass, 1, 1)
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.COOLING
+
+
+async def test_hvac_action_idle_when_hc_status_inactive_cooling(hass, setup_entry):
+    """Hc1Status=0 + cool_compressor_active → IDLE; this zone is not contributing."""
+    await _fire(hass)
+    await _fire_hmu(hass, "cool_compressor_active")
+    await _fire_hc_status(hass, 1, 0)
+    assert _climate(hass).attributes.get("hvac_action") == HVACAction.IDLE
+
+
+TWO_ZONE_MSGS: dict[str, dict] = {
+    f"{MQTT_PREFIX}/{DEVICE}/Z1DayTemp": {"value": {"value": 21}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z1RoomTemp": {"value": {"value": 20.0}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod": {"value": {"value": "01.01.2015"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod": {"value": {"value": "01.01.2015"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z1OpMode": {"value": {"value": "auto"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z2DayTemp": {"value": {"value": 21}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z2RoomTemp": {"value": {"value": 21.5}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z2HolidayStartPeriod": {"value": {"value": "01.01.2015"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z2HolidayEndPeriod": {"value": {"value": "01.01.2015"}},
+    f"{MQTT_PREFIX}/{DEVICE}/Z2OpMode": {"value": {"value": "auto"}},
+}
+
+
+async def test_two_zones_differ_by_hc_status(hass, setup_entry):
+    """Zone 1 (Hc1Status=1) shows HEATING; Zone 2 (Hc2Status=0) shows IDLE."""
+    await _fire(hass, TWO_ZONE_MSGS)
+    await _fire_hmu(hass, "heat_compressor_active")
+    await _fire_hc_status(hass, 1, 1)
+    await _fire_hc_status(hass, 2, 0)
+
+    states = {s.name: s for s in hass.states.async_all("climate")}
+    assert states["Vaillant Zone 1"].attributes.get("hvac_action") == HVACAction.HEATING
+    assert states["Vaillant Zone 2"].attributes.get("hvac_action") == HVACAction.IDLE

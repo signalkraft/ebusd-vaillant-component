@@ -12,8 +12,14 @@ DEFAULT_AWAY_MODE_DURATION = 7
 CONF_QUICK_VETO_DURATION = "quick_veto_duration"
 DEFAULT_QUICK_VETO_DURATION = 3
 
+CONF_QUICK_VETO_TEMP = "quick_veto_temp"
+DEFAULT_QUICK_VETO_TEMP = 21.0
+
 CONF_MAX_ZONES = "max_zones"
 DEFAULT_MAX_ZONES = 4
+
+CONF_ZONES_WITH_TEMP_ONLY = "zones_with_temp_only"
+DEFAULT_ZONES_WITH_TEMP_ONLY = True
 
 CONF_PRIME_VALUES = "prime_poll_values"
 DEFAULT_PRIME_VALUES = True
@@ -63,3 +69,8 @@ DISCOVERY_DEVICE_NAMES = ["ctlv3", "ctlv2", "hmu", "bai", "bai00"]
 _DISCOVERY_TOPICS_HWC = ["HwcOpMode", "HwcTempDesired"]
 _DISCOVERY_TOPICS_PRESSURE = ["WaterPressure"]
 _DISCOVERY_TOPICS_ZONE = ["Z{n}OpMode", "Z{n}RoomTemp"]
+_DISCOVERY_TOPICS_HC = [
+    "Hc{n}MinFlowTempDesired",
+    "Hc{n}MinCoolTempDesired",
+    "Hc{n}MinCoolingTempDesired",
+]

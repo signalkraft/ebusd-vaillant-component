@@ -13,17 +13,22 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    _DISCOVERY_TOPICS_HC,
     _DISCOVERY_TOPICS_HWC,
     _DISCOVERY_TOPICS_PRESSURE,
     _DISCOVERY_TOPICS_ZONE,
     CONF_MAX_ZONES,
     CONF_PRIME_VALUES,
+    CONF_ZONES_WITH_TEMP_ONLY,
     DEFAULT_MAX_ZONES,
     DEFAULT_PRIME_VALUES,
+    DEFAULT_ZONES_WITH_TEMP_ONLY,
     DISCOVERY_DEVICE_NAMES,
 )
 from .discovery import (
     DiscoveredClimate,
+    DiscoveredCoolTempLimit,
+    DiscoveredFlowTempRange,
     DiscoveredPressureSensor,
     DiscoveredWaterHeater,
     TopicConfig,
@@ -47,6 +52,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressur
             e.holiday_start_time is not None,
             e.holiday_end_time is not None,
             e.run_data_status is not None,
+            e.hc_status is not None,
         )
     if isinstance(e, DiscoveredWaterHeater):
         return (
@@ -113,6 +119,12 @@ class EbusdCoordinator:
                 for z in range(1, max_zones + 1)
                 for t in _DISCOVERY_TOPICS_ZONE
             ],
+            *[
+                self._prefix + "/" + dev + "/" + t.format(n=hc)
+                for dev in DISCOVERY_DEVICE_NAMES
+                for hc in range(1, max_zones + 1)
+                for t in _DISCOVERY_TOPICS_HC
+            ],
         ]
         _LOGGER.info("Priming discovery: sending %d get requests", len(topics))
         for topic in topics:
@@ -154,6 +166,9 @@ class EbusdCoordinator:
             self._prefix,
             self._display_name,
             max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
+            zones_with_temp_only=self._entry.options.get(
+                CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
+            ),
         )
         if entities:
             listener(entities)
@@ -178,6 +193,18 @@ class EbusdCoordinator:
                     entity.holiday_start_time,
                     entity.holiday_end_time,
                 ]
+            elif isinstance(entity, DiscoveredFlowTempRange):
+                topic_attrs = [
+                    entity.min_flow_temp,
+                    entity.max_flow_temp,
+                    entity.current_flow_temp,
+                    entity.run_data_status,
+                ]
+            elif isinstance(entity, DiscoveredCoolTempLimit):
+                topic_attrs = [
+                    entity.cool_temp,
+                    entity.run_data_status,
+                ]
             else:  # DiscoveredClimate
                 topic_attrs = [
                     entity.mode,
@@ -194,6 +221,7 @@ class EbusdCoordinator:
                     entity.quick_veto_end_date,
                     entity.quick_veto_end_time,
                     entity.run_data_status,
+                    entity.hc_status,
                 ]
             for cfg in topic_attrs:
                 if cfg is not None:
@@ -234,6 +262,9 @@ class EbusdCoordinator:
             self._prefix,
             self._display_name,
             max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
+            zones_with_temp_only=self._entry.options.get(
+                CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
+            ),
         )
         new_sigs = frozenset(_entity_sig(e) for e in entities)
         if new_sigs == self._known_entity_sigs:

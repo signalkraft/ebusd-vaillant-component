@@ -4,6 +4,8 @@ import pytest
 
 from custom_components.ebusd_vaillant.discovery import (
     DiscoveredClimate,
+    DiscoveredCoolTempLimit,
+    DiscoveredFlowTempRange,
     DiscoveredPressureSensor,
     DiscoveredWaterHeater,
     _analyze,
@@ -29,7 +31,12 @@ def test_entity_types_are_valid(data_file):
     entities = _analyze(by_device, prefix)
     for entity in entities:
         assert isinstance(
-            entity, DiscoveredClimate | DiscoveredWaterHeater | DiscoveredPressureSensor
+            entity,
+            DiscoveredClimate
+            | DiscoveredWaterHeater
+            | DiscoveredPressureSensor
+            | DiscoveredFlowTempRange
+            | DiscoveredCoolTempLimit,
         )
 
 
@@ -696,3 +703,130 @@ def test_run_data_status_resolved_from_statuscode_reech():
     assert z1.run_data_status is not None
     assert z1.run_data_status.read_topic == "ebusd/hmu/Statuscode"
     assert z1.run_data_status.field == "scode.value"
+
+
+# ---------------------------------------------------------------------------
+# hc_status  -  per-zone Hc{n}Status resolution
+# ---------------------------------------------------------------------------
+
+
+def test_hc_status_resolved_per_zone():
+    """Hc1Status on the same device is linked to Zone 1 only."""
+    by_device = {
+        "ctlv2": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Hc1Status": {"value": {"value": 1}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.hc_status is not None
+    assert z1.hc_status.read_topic == "ebusd/ctlv2/Hc1Status"
+    assert z1.hc_status.write_topic is None  # read-only
+
+
+def test_hc_status_per_zone_not_shared():
+    """Zone 1 gets Hc1Status, Zone 2 gets Hc2Status -- they are not shared."""
+    by_device = {
+        "ctlv2": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Z2OpMode": {"value": {"value": "auto"}},
+            "Z2RoomTemp": {"value": {"value": 21.0}},
+            "Hc1Status": {"value": {"value": 1}},
+            "Hc2Status": {"value": {"value": 0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    climates = sorted(
+        [e for e in entities if isinstance(e, DiscoveredClimate)], key=lambda e: e.key
+    )
+    assert len(climates) == 2
+    z1, z2 = climates
+    assert z1.hc_status is not None
+    assert z1.hc_status.read_topic == "ebusd/ctlv2/Hc1Status"
+    assert z2.hc_status is not None
+    assert z2.hc_status.read_topic == "ebusd/ctlv2/Hc2Status"
+
+
+def test_hc_status_none_when_absent():
+    """When no Hc{n}Status message exists, hc_status stays None."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
+    assert z1.hc_status is None
+
+
+# ---------------------------------------------------------------------------
+# zones_with_temp_only option
+# ---------------------------------------------------------------------------
+
+
+def test_zones_with_temp_only_default_excludes_empty_payload_zone():
+    """zones_with_temp_only=True (default) must skip zones whose RoomTemp is a
+    raw empty-bytes payload -- the real-world cause of phantom zones.
+
+    On live hardware, ebusd publishes Z2RoomTemp / Z3RoomTemp with an empty
+    MQTT payload for unconfigured zones. The coordinator caches the raw bytes
+    (b'') because json.loads raises on empty input.  The old is-None gate let
+    b'' through; the new _is_number gate must reject it.
+    """
+    by_device = {
+        "ctlv2": {
+            # Zone 1: real numeric temperature -- should be included.
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 26.1}},
+            # Zone 2: empty-bytes payload (exactly what the coordinator caches
+            # when ebusd publishes an empty MQTT payload).
+            "Z2OpMode": {"value": {"value": "auto"}},
+            "Z2RoomTemp": b"",
+            # Zone 3: empty-string payload -- also a degenerate non-numeric value.
+            "Z3OpMode": {"value": {"value": "auto"}},
+            "Z3RoomTemp": "",
+        }
+    }
+    entities = _analyze(by_device, "ebusd", zones_with_temp_only=True)
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1
+    assert climates[0].key == "ctlv2_zone1"
+
+
+def test_zones_with_temp_only_false_keeps_empty_payload_zone():
+    """zones_with_temp_only=False (legacy behavior) must include zones with
+    non-None room values even when the value is a raw empty-bytes payload.
+
+    This preserves the pre-fix max_zones behavior for users who want it.
+    """
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 20.0}},
+            "Z2OpMode": {"value": {"value": "auto"}},
+            "Z2RoomTemp": b"",  # non-None, so legacy gate passes
+        }
+    }
+    entities = _analyze(by_device, "ebusd", zones_with_temp_only=False, max_zones=4)
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    keys = {e.key for e in climates}
+    assert "dev_zone1" in keys
+    assert "dev_zone2" in keys
+
+
+def test_zones_with_temp_only_true_keeps_numeric_zero():
+    """A room temperature of exactly 0.0 is a valid numeric reading and must
+    not be excluded by the zones_with_temp_only gate."""
+    by_device = {
+        "dev": {
+            "Z1OpMode": {"value": {"value": "auto"}},
+            "Z1RoomTemp": {"value": {"value": 0.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd", zones_with_temp_only=True)
+    climates = [e for e in entities if isinstance(e, DiscoveredClimate)]
+    assert len(climates) == 1

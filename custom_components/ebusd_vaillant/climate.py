@@ -34,7 +34,12 @@ from .const import (
     HA_TO_EBUSD_HVAC,
 )
 from .coordinator import EbusdCoordinator
-from .discovery import DiscoveredClimate, TopicConfig, _get
+from .discovery import (
+    DiscoveredClimate,
+    DiscoveredFlowTempRange,
+    TopicConfig,
+    _get,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,20 +64,28 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities_by_name: dict[str, EbusdClimateEntity] = {}
+    flow_temp_by_key: dict[str, EbusdFlowTempRangeEntity] = {}
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
     quick_veto_duration = entry.options.get(CONF_QUICK_VETO_DURATION, DEFAULT_QUICK_VETO_DURATION)
 
     def _on_discover(entities: list) -> None:
         new = []
         for e in entities:
-            if not isinstance(e, DiscoveredClimate):
-                continue
-            if e.name in entities_by_name:
-                hass.async_create_task(entities_by_name[e.name].async_update_config(e, coordinator))
-            else:
-                entity = EbusdClimateEntity(hass, e, away_duration, quick_veto_duration)
-                entities_by_name[e.name] = entity
-                new.append(entity)
+            if isinstance(e, DiscoveredClimate):
+                if e.name in entities_by_name:
+                    hass.async_create_task(
+                        entities_by_name[e.name].async_update_config(e, coordinator)
+                    )
+                else:
+                    entity = EbusdClimateEntity(hass, e, away_duration, quick_veto_duration)
+                    entities_by_name[e.name] = entity
+                    new.append(entity)
+            elif isinstance(e, DiscoveredFlowTempRange):
+                if e.key not in flow_temp_by_key:
+                    entity = EbusdFlowTempRangeEntity(hass, e, coordinator)
+                    flow_temp_by_key[e.key] = entity
+                    new.append(entity)
+
         if new:
             async_add_entities(new)
 
@@ -119,6 +132,7 @@ class EbusdClimateEntity(ClimateEntity):
         self._quick_veto_end_time: str | None = None
 
         self._run_data_statuscode: str | None = None
+        self._hc_statuscode: str | None = None
 
         features = (
             ClimateEntityFeature.TURN_ON
@@ -157,6 +171,8 @@ class EbusdClimateEntity(ClimateEntity):
             )
         if self._config.run_data_status:
             await self._subscribe(self._config.run_data_status, self._handle_run_data_statuscode)
+        if self._config.hc_status:
+            await self._subscribe(self._config.hc_status, self._handle_hc_statuscode)
 
     async def async_will_remove_from_hass(self) -> None:
         for unsub in self._unsubscribe:
@@ -189,6 +205,11 @@ class EbusdClimateEntity(ClimateEntity):
             val = coordinator.get_current_value(config.run_data_status)
             if val is not None:
                 self._handle_run_data_statuscode(val)
+        if config.hc_status and not self._config.hc_status:
+            await self._subscribe(config.hc_status, self._handle_hc_statuscode)
+            val = coordinator.get_current_value(config.hc_status)
+            if val is not None:
+                self._handle_hc_statuscode(val)
         self._config = config
         self.async_write_ha_state()
 
@@ -209,13 +230,28 @@ class EbusdClimateEntity(ClimateEntity):
 
     @callback
     def _determine_hvac_action(self) -> HVACAction:
-        """Derive hvac_action from current mode and run data status code."""
+        """Derive hvac_action from current mode, run data status, and per-zone Hc{n}Status."""
         if self._attr_hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
-        if self._run_data_statuscode in _STAT_HVAC_ACTION_HEATING:
-            return HVACAction.HEATING
-        if self._run_data_statuscode in _STAT_HVAC_ACTION_COOLING:
-            return HVACAction.COOLING
+
+        global_heating = self._run_data_statuscode in _STAT_HVAC_ACTION_HEATING
+        global_cooling = self._run_data_statuscode in _STAT_HVAC_ACTION_COOLING
+
+        if self._hc_statuscode is not None:
+            # Hc{n}Status=1 means this circuit is contributing; 0 means idle for this zone
+            zone_active = self._hc_statuscode not in ("0", "false", "inactive", "off")
+            if global_heating and zone_active:
+                return HVACAction.HEATING
+            if global_cooling and zone_active:
+                return HVACAction.COOLING
+            if global_heating or global_cooling:
+                return HVACAction.IDLE
+        else:
+            if global_heating:
+                return HVACAction.HEATING
+            if global_cooling:
+                return HVACAction.COOLING
+
         if self._attr_hvac_mode == HVACMode.HEAT:
             return HVACAction.HEATING
         if self._attr_hvac_mode == HVACMode.COOL:
@@ -233,6 +269,11 @@ class EbusdClimateEntity(ClimateEntity):
     @callback
     def _handle_run_data_statuscode(self, value: Any) -> None:
         self._run_data_statuscode = str(value)
+        self._attr_hvac_action = self._determine_hvac_action()
+
+    @callback
+    def _handle_hc_statuscode(self, value: Any) -> None:
+        self._hc_statuscode = str(value)
         self._attr_hvac_action = self._determine_hvac_action()
 
     @callback
@@ -375,3 +416,124 @@ class EbusdClimateEntity(ClimateEntity):
 
     async def async_turn_off(self) -> None:
         await self.async_set_hvac_mode(HVACMode.OFF)
+
+
+class _EbusdSetpointBase(ClimateEntity):
+    """Shared base for simple setpoint-only climate entities (no modes or presets)."""
+
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_hvac_action = HVACAction.IDLE
+
+    def __init__(self, hass: HomeAssistant, coordinator: EbusdCoordinator) -> None:
+        self.hass = hass
+        self._coordinator = coordinator
+        self._run_data_statuscode: str | None = None
+        self._unsubscribe: list[Any] = []
+
+    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+        @callback
+        def _wrap(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            value = _get(payload, topic_cfg.field)
+            if value is not None:
+                handler(value)
+                self.async_write_ha_state()
+
+        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
+        self._unsubscribe.append(unsub)
+
+    def _seed(self, topic_cfg: TopicConfig, handler: Any) -> None:
+        if (v := self._coordinator.get_current_value(topic_cfg)) is not None:
+            handler(v)
+
+    async def _subscribe_run_data_status(self, topic_cfg: TopicConfig | None) -> None:
+        if topic_cfg is None:
+            return
+        await self._subscribe(topic_cfg, self._handle_run_data_statuscode)
+        self._seed(topic_cfg, self._handle_run_data_statuscode)
+
+    @callback
+    def _handle_run_data_statuscode(self, value: Any) -> None:
+        self._run_data_statuscode = str(value)
+        self._attr_hvac_action = self._compute_hvac_action()
+
+    def _compute_hvac_action(self) -> HVACAction:
+        if self._run_data_statuscode in _STAT_HVAC_ACTION_HEATING:
+            return HVACAction.HEATING
+        if self._run_data_statuscode in _STAT_HVAC_ACTION_COOLING:
+            return HVACAction.COOLING
+        return HVACAction.IDLE
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._unsubscribe:
+            unsub()
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        pass
+
+
+class EbusdFlowTempRangeEntity(_EbusdSetpointBase):
+    """Min/max heating circuit flow temperature range (Hc{n}MinFlowTempDesired / Max)."""
+
+    _attr_hvac_modes = [HVACMode.AUTO]
+    _attr_hvac_mode = HVACMode.AUTO
+    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
+
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredFlowTempRange, coordinator: EbusdCoordinator
+    ) -> None:
+        super().__init__(hass, coordinator)
+        self._config = config
+        self._attr_name = config.name
+        self._attr_unique_id = f"ebusd_flow_temp_range_{config.key}"
+        self._attr_min_temp = config.min_temp
+        self._attr_max_temp = config.max_temp
+        self._attr_target_temperature_step = config.temp_step
+        self._attr_target_temperature_low: float | None = None
+        self._attr_target_temperature_high: float | None = None
+        self._attr_current_temperature: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await self._subscribe(self._config.min_flow_temp, self._handle_min)
+        await self._subscribe(self._config.max_flow_temp, self._handle_max)
+        if self._config.current_flow_temp:
+            await self._subscribe(self._config.current_flow_temp, self._handle_current_flow_temp)
+            self._seed(self._config.current_flow_temp, self._handle_current_flow_temp)
+        await self._subscribe_run_data_status(self._config.run_data_status)
+        self._seed(self._config.min_flow_temp, self._handle_min)
+        self._seed(self._config.max_flow_temp, self._handle_max)
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_min(self, value: Any) -> None:
+        try:
+            self._attr_target_temperature_low = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_max(self, value: Any) -> None:
+        try:
+            self._attr_target_temperature_high = float(value)
+        except TypeError, ValueError:
+            pass
+
+    @callback
+    def _handle_current_flow_temp(self, value: Any) -> None:
+        try:
+            self._attr_current_temperature = float(value)
+        except TypeError, ValueError:
+            pass
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        low = kwargs.get("target_temp_low")
+        high = kwargs.get("target_temp_high")
+        if low is not None and self._config.min_flow_temp.write_topic:
+            await mqtt.async_publish(self.hass, self._config.min_flow_temp.write_topic, str(low))
+        if high is not None and self._config.max_flow_temp.write_topic:
+            await mqtt.async_publish(self.hass, self._config.max_flow_temp.write_topic, str(high))

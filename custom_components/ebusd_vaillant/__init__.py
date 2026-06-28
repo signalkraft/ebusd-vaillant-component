@@ -18,7 +18,7 @@ from .coordinator import EbusdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["climate", "datetime", "sensor", "switch", "water_heater"]
+PLATFORMS = ["climate", "datetime", "number", "sensor", "switch", "water_heater"]
 SERVICE_DUMP_MQTT = "dump_mqtt_values"
 SERVICE_RECORD_TOPIC = "record_topic_changes"
 
@@ -90,7 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device, msg_name = parts[1], parts[2]
                 try:
                     payload = json.loads(msg.payload)
-                except (json.JSONDecodeError, ValueError):
+                except json.JSONDecodeError, ValueError:
                     payload = msg.payload
                 value = _flatten_payload(payload)
                 if value == "" or value is None:

@@ -40,13 +40,15 @@
           "away_mode_duration": "Default away mode duration (days)",
           "quick_veto_duration": "Default quick veto duration (hours)",
           "max_zones": "Number of zones",
-          "prime_poll_values": "Discover devices on startup"
+          "prime_poll_values": "Discover devices on startup",
+          "zones_with_temp_only": "Only zones with a temperature reading"
         },
         "data_description": {
           "away_mode_duration": "Number of days the away mode lasts when activated (default: 7)",
           "quick_veto_duration": "Number of hours the quick veto lasts when triggered (default: 3)",
           "max_zones": "Limits how many zone entities are created (default: 4)",
-          "prime_poll_values": "Tries to request typical MQTT topic names to be able to show values immediately on startup. If disabled, entities become available as MQTT values are published (default: on)"
+          "prime_poll_values": "Tries to request typical MQTT topic names to be able to show values immediately on startup. If disabled, entities become available as MQTT values are published (default: on)",
+          "zones_with_temp_only": "When enabled (default), only create climate entities for zones that report a current temperature. When disabled, create entities for all zones up to the configured maximum."
         }
       }
     }

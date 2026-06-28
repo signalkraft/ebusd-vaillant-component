@@ -40,13 +40,15 @@
           "away_mode_duration": "Duración predeterminada del modo ausente (días)",
           "quick_veto_duration": "Duración predeterminada del veto rápido (horas)",
           "max_zones": "Número de zonas",
-          "prime_poll_values": "Descubrir dispositivos al iniciar"
+          "prime_poll_values": "Descubrir dispositivos al iniciar",
+          "zones_with_temp_only": "Solo zonas con lectura de temperatura"
         },
         "data_description": {
           "away_mode_duration": "Número de días que dura el modo ausente cuando se activa (por defecto: 7)",
           "quick_veto_duration": "Número de horas que dura el veto rápido cuando se activa (por defecto: 3)",
           "max_zones": "Limita cuántas entidades de zona se crean (por defecto: 4)",
-          "prime_poll_values": "Intenta solicitar nombres de temas MQTT típicos para poder mostrar valores inmediatamente al iniciar. Si está desactivado, las entidades estarán disponibles a medida que se publiquen valores MQTT (por defecto: activado)"
+          "prime_poll_values": "Intenta solicitar nombres de temas MQTT típicos para poder mostrar valores inmediatamente al iniciar. Si está desactivado, las entidades estarán disponibles a medida que se publiquen valores MQTT (por defecto: activado)",
+          "zones_with_temp_only": "Cuando está activado (por defecto), solo se crean entidades de clima para las zonas que informan una temperatura actual. Cuando está desactivado, se crean entidades para todas las zonas hasta el máximo configurado."
         }
       }
     }
