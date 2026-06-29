@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .const import DEVICE_TYPE_LABELS
+
 
 @dataclass
 class TopicConfig:
@@ -96,11 +98,17 @@ class DiscoveredCoolTempLimit:
 
 
 @dataclass
-class DiscoveredPressureSensor:
+class DiscoveredSensor:
+    """Generic numeric sensor (pressure, energy, power, COP)."""
+
     device_id: str
     key: str
     name: str
     topic: TopicConfig
+    device_class: str | None
+    state_class: str
+    unit: str | None
+    unique_id_prefix: str
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -136,6 +144,91 @@ class DiscoveredWaterHeater:
     model: str = ""
     sw_version: str = ""
     hw_version: str = ""
+
+
+@dataclass(frozen=True)
+class SensorConfig:
+    """Descriptor for an auto-discovered numeric sensor.
+
+    topic_keys: ordered tuple of MQTT topic names, first found wins.
+    key: optional override for the entity key suffix (defaults to topic_keys[0].lower()).
+    unique_id_prefix: prefix used to build the entity unique_id.
+    device_role: when "hwc", sensor is placed on the Hot Water device (if one
+        was discovered); otherwise it goes on the physical device it was found on.
+    """
+
+    topic_keys: tuple[str, ...]
+    name: str
+    state_class: str
+    unit: str | None = None
+    device_class: str | None = None
+    key: str | None = None
+    unique_id_prefix: str = "ebusd_sensor"
+    device_role: str | None = None
+
+
+def _power(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement", "kW", "power")
+
+
+def _energy(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "total_increasing", "kWh", "energy")
+
+
+def _energy_hwc(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "total_increasing", "kWh", "energy", device_role="hwc")
+
+
+def _cop(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement")
+
+
+def _cop_hwc(topic: str, name: str) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement", device_role="hwc")
+
+
+def _pressure(topics: tuple[str, ...], name: str, key: str) -> SensorConfig:
+    return SensorConfig(
+        topics,
+        name,
+        "measurement",
+        "bar",
+        "pressure",
+        key=key,
+        unique_id_prefix="ebusd_pressure",
+    )
+
+
+# Sensors auto-discovered when a matching ebusd topic is present.
+# HA Energy dashboard compatible: cumulative kWh values use total_increasing.
+# Sensors tagged device_role="hwc" are placed on the Hot Water device (if present).
+_SENSOR_CONFIGS: list[SensorConfig] = [
+    _pressure(("WaterPressure", "DisplaySystemPressure"), "Water Pressure", "pressure"),
+    _power("PowerConsumptionHmu", "Heat Pump Electrical Power"),
+    _power("CurrentConsumedPower", "Electrical Power Consumed"),
+    _power("CurrentYieldPower", "Heat Power Generated"),
+    _energy("TotalEnergyUsage", "Consumed Electrical Energy"),
+    _energy("ConsumptionTotal", "Total Electrical Consumption"),
+    _energy("YieldHc", "Heat Generated Heating"),
+    _energy_hwc("YieldHwc", "Heat Generated Domestic Hot Water"),
+    _energy("YieldCooling", "Heat Generated Cooling"),
+    _energy("YieldTotal", "Earned Environment Energy"),
+    _energy("SolarYieldTotal", "Solar Energy Generated"),
+    _energy("PrEnergySumHc", "Consumed Electrical Energy Heating"),
+    _energy_hwc("PrEnergySumHwc", "Consumed Electrical Energy Domestic Hot Water"),
+    _energy("YieldHcDay", "Heat Generated Heating Today"),
+    _energy_hwc("YieldHwcDay", "Heat Generated Domestic Hot Water Today"),
+    _energy("YieldCoolDay", "Heat Generated Cooling Today"),
+    _energy("YieldHcMonth", "Heat Generated Heating This Month"),
+    _energy_hwc("YieldHwcMonth", "Heat Generated Domestic Hot Water This Month"),
+    _energy("YieldCoolingMonth", "Heat Generated Cooling This Month"),
+    _cop("CopHc", "COP Heating"),
+    _cop("CopHcMonth", "COP Heating This Month"),
+    _cop_hwc("CopHwc", "COP Domestic Hot Water"),
+    _cop_hwc("CopHwcMonth", "COP Domestic Hot Water This Month"),
+    _cop("CopCooling", "COP Cooling"),
+    _cop("CopCoolingMonth", "COP Cooling This Month"),
+]
 
 
 def _scan_field(raw: dict[str, Any], field: str) -> str | None:
@@ -275,7 +368,6 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
         "HwcStorageTempTop",
         "DisplayedHwcStorageTemp",
     ],
-    "pressure": ["WaterPressure", "DisplaySystemPressure"],
     "zone_op_mode": [
         "Z{n}OpMode",
         "z{n}OpModeHeating",
@@ -346,33 +438,45 @@ def _resolve_key(msgs: dict[str, Any], role: str, **fmt_kwargs: Any) -> str | No
     return None
 
 
-def _find_nested(
-    msgs: dict[str, Any], role: str, **fmt_kwargs: Any
-) -> tuple[str | None, str | None]:
-    """Resolve a role to a (msg_key, field_path) pair, searching inside
-    multi-field messages when no top-level key matches.
+def _find_topic(msgs: dict[str, Any], patterns: list[str]) -> tuple[str | None, str | None]:
+    """Find the first matching topic for a list of candidate names.
 
-    Tries top-level key match first via _resolve_key.  If that fails,
-    iterates through all multi-field messages and checks their sub-keys.
-    Returns (None, None) when nothing matches.
+    Search order:
+    1. Exact top-level match across all patterns (earlier patterns win).
+    2. Case-insensitive top-level match across all patterns.
+    3. Exact / case-insensitive sub-field inside multi-value messages.
+
+    Returns (msg_key, field_path) or (None, None).
     """
-    top_key = _resolve_key(msgs, role, **fmt_kwargs)
-    if top_key is not None:
-        return top_key, _infer_field(msgs[top_key])
-
-    patterns = _ROLE_PATTERNS[role]
+    for pat in patterns:
+        if pat in msgs:
+            return pat, _infer_field(msgs[pat])
+    lower_map = {k.lower(): k for k in msgs}
+    for pat in patterns:
+        actual = lower_map.get(pat.lower())
+        if actual is not None:
+            return actual, _infer_field(msgs[actual])
     for msg_name, payload in msgs.items():
         if not isinstance(payload, dict):
             continue
+        low_payload = {k.lower(): k for k in payload}
         for pat in patterns:
-            sub_key_lookup = pat.format(**fmt_kwargs)
-            if sub_key_lookup in payload:
-                return msg_name, f"{sub_key_lookup}.value"
-            low_payload = {k.lower(): k for k in payload}
-            if sub_key_lookup.lower() in low_payload:
-                actual_key = low_payload[sub_key_lookup.lower()]
-                return msg_name, f"{actual_key}.value"
+            sub = pat if pat in payload else low_payload.get(pat.lower())
+            if sub is not None:
+                return msg_name, f"{sub}.value"
     return None, None
+
+
+def _find_nested(
+    msgs: dict[str, Any], role: str, **fmt_kwargs: Any
+) -> tuple[str | None, str | None]:
+    """Resolve a role to a (msg_key, field_path) pair.
+
+    Formats each pattern in _ROLE_PATTERNS[role] with fmt_kwargs, then
+    delegates to _find_topic.
+    """
+    patterns = [p.format(**fmt_kwargs) for p in _ROLE_PATTERNS[role]]
+    return _find_topic(msgs, patterns)
 
 
 def _topic_config(
@@ -397,7 +501,7 @@ def _analyze(
 ) -> list[
     DiscoveredClimate
     | DiscoveredWaterHeater
-    | DiscoveredPressureSensor
+    | DiscoveredSensor
     | DiscoveredFlowTempRange
     | DiscoveredCoolTempLimit
 ]:
@@ -405,7 +509,7 @@ def _analyze(
     entities: list[
         DiscoveredClimate
         | DiscoveredWaterHeater
-        | DiscoveredPressureSensor
+        | DiscoveredSensor
         | DiscoveredFlowTempRange
         | DiscoveredCoolTempLimit
     ] = []
@@ -426,6 +530,17 @@ def _analyze(
         else None
     )
 
+    # Resolve hwc owner once (mirrors run_data_status pattern): find the device
+    # that has HwcOpMode + HwcTempDesired so DHW energy sensors can be grouped
+    # onto the same Hot Water sub-device as the water heater entity.
+    _hwc_owner: str | None = None
+    for _d_id, _d_msgs in by_device.items():
+        if _d_id.lower().startswith("scan."):
+            continue
+        if _resolve_key(_d_msgs, "hwc_op_mode") and _resolve_key(_d_msgs, "hwc_target_temp"):
+            _hwc_owner = _d_id
+            break
+
     # Discover manufacturer once (all devices on a Vaillant bus share the same MF).
     _mf = discover_manufacturer(by_device)
 
@@ -440,27 +555,6 @@ def _analyze(
         _model = _meta.get("model", "")
         _sw = _meta.get("sw_version", "")
         _hw = _meta.get("hw_version", "")
-
-        # --- Water pressure sensor ---
-        pressure_key, pressure_field = _find_nested(msgs, "pressure")
-        if pressure_key:
-            entities.append(
-                DiscoveredPressureSensor(
-                    device_id=device_id,
-                    key=f"{device_id}_pressure",
-                    name=f"{display_name} Water Pressure",
-                    topic=_topic_config(
-                        prefix, device_id, pressure_key, pressure_field, writable=False
-                    ),
-                    device_key=prefix,
-                    device_name=display_name,
-                    parent_key=prefix,
-                    manufacturer=_manufacturer,
-                    model=_model,
-                    sw_version=_sw,
-                    hw_version=_hw,
-                )
-            )
 
         # --- Water heater: HwcOpMode + HwcTempDesired required ---
         hwc_op_key = _resolve_key(msgs, "hwc_op_mode")
@@ -754,6 +848,45 @@ def _analyze(
                     hc_status=hc_status_cfg,
                     device_key=f"{device_id}_zone{zone}",
                     device_name=f"{display_name} Zone {zone}",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
+                )
+            )
+
+        # --- Auto-discovered sensors (pressure, energy, power, COP) ---
+        _dev_label = DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())
+        _heat_pump_key = device_id
+        _heat_pump_name = f"{display_name} {_dev_label}"
+        for pattern in _SENSOR_CONFIGS:
+            found_key, found_field = _find_topic(msgs, list(pattern.topic_keys))
+            if found_key is None:
+                continue
+
+            key_suffix = pattern.key or pattern.topic_keys[0].lower()
+
+            # Route DHW-tagged sensors onto the Hot Water device when available.
+            if pattern.device_role == "hwc" and _hwc_owner is not None:
+                _s_dev_key = f"{_hwc_owner}_hwc"
+                _s_dev_name = f"{display_name} Hot Water"
+            else:
+                _s_dev_key = _heat_pump_key
+                _s_dev_name = _heat_pump_name
+
+            entities.append(
+                DiscoveredSensor(
+                    device_id=device_id,
+                    key=f"{device_id}_{key_suffix}",
+                    name=pattern.name,
+                    topic=_topic_config(prefix, device_id, found_key, found_field, writable=False),
+                    device_class=pattern.device_class,
+                    state_class=pattern.state_class,
+                    unit=pattern.unit,
+                    unique_id_prefix=pattern.unique_id_prefix,
+                    device_key=_s_dev_key,
+                    device_name=_s_dev_name,
                     parent_key=prefix,
                     manufacturer=_manufacturer,
                     model=_model,

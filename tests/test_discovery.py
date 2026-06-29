@@ -6,10 +6,10 @@ from custom_components.ebusd_vaillant.discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
     DiscoveredFlowTempRange,
-    DiscoveredPressureSensor,
+    DiscoveredSensor,
     DiscoveredWaterHeater,
     _analyze,
-    _find_nested,
+    _find_topic,
     _infer_field,
     _resolve_key,
     discover_device_meta,
@@ -36,7 +36,7 @@ def test_entity_types_are_valid(data_file):
             entity,
             DiscoveredClimate
             | DiscoveredWaterHeater
-            | DiscoveredPressureSensor
+            | DiscoveredSensor
             | DiscoveredFlowTempRange
             | DiscoveredCoolTempLimit,
         )
@@ -179,45 +179,48 @@ def test_resolve_key_z_cooling_manual_temp():
     assert _resolve_key(msgs, "zone_cooling_temp", n=1) == "Z1CoolingManualTemp"
 
 
-def test_resolve_key_pressure_variants():
+# ---------------------------------------------------------------------------
+# _find_topic
+# ---------------------------------------------------------------------------
+
+_PRESSURE_KEYS = ["WaterPressure", "DisplaySystemPressure"]
+
+
+def test_find_topic_top_level_first_key():
+    """Exact top-level match on the first candidate key."""
     msgs = {"WaterPressure": {"pressv": {"value": 1.7}}}
-    assert _resolve_key(msgs, "pressure") == "WaterPressure"
-    msgs2 = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
-    assert _resolve_key(msgs2, "pressure") == "DisplaySystemPressure"
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "WaterPressure"
+    assert field == "pressv.value"
+
+
+def test_find_topic_top_level_second_key():
+    """Exact top-level match on the second candidate key."""
+    msgs = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "DisplaySystemPressure"
+    assert field == "pressv.value"
+
+
+def test_find_topic_nested_fallback():
+    """DisplaySystemPressure nested inside State07 is found when no top-level match."""
+    msgs = {"State07": {"power": {"value": 0}, "DisplaySystemPressure": {"value": 1.7}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key == "State07"
+    assert field == "DisplaySystemPressure.value"
+
+
+def test_find_topic_no_match():
+    """No pressure key anywhere returns (None, None)."""
+    msgs = {"State07": {"power": {"value": 0}, "energy": {"value": 0}}}
+    key, field = _find_topic(msgs, _PRESSURE_KEYS)
+    assert key is None
+    assert field is None
 
 
 # ---------------------------------------------------------------------------
 # _find_nested
 # ---------------------------------------------------------------------------
-
-
-def test_find_nested_top_level_pressure():
-    """Top-level WaterPressure returns (key, field)."""
-    msgs = {"WaterPressure": {"pressv": {"value": 1.7}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "WaterPressure"
-    assert field == "pressv.value"
-
-
-def test_find_nested_nested_display_pressure():
-    """DisplaySystemPressure nested inside State07 is found."""
-    msgs = {
-        "State07": {
-            "power": {"value": 0},
-            "DisplaySystemPressure": {"value": 1.7},
-        }
-    }
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "State07"
-    assert field == "DisplaySystemPressure.value"
-
-
-def test_find_nested_nested_missing():
-    """No pressure key anywhere returns (None, None)."""
-    msgs = {"State07": {"power": {"value": 0}, "energy": {"value": 0}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key is None
-    assert field is None
 
 
 def test_find_nested_via_state07_discovers_pressure_sensor():
@@ -231,12 +234,25 @@ def test_find_nested_via_state07_discovers_pressure_sensor():
         }
     }
     entities = _analyze(by_device, "ebusd")
-    sensors = [e for e in entities if isinstance(e, DiscoveredPressureSensor)]
+    sensors = [
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    ]
     assert len(sensors) == 1
     ps = sensors[0]
     assert ps.device_id == "hmu"
     assert ps.topic.read_topic == "ebusd/hmu/State07"
     assert ps.topic.field == "DisplaySystemPressure.value"
+
+
+def test_sensor_pattern_second_key_used_when_first_absent():
+    """When first candidate topic is absent, second candidate is used (top-level)."""
+    by_device = {"hmu": {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}}
+    entities = _analyze(by_device, "ebusd")
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
+    assert ps.topic.read_topic == "ebusd/hmu/DisplaySystemPressure"
+    assert ps.topic.field == "pressv.value"
 
 
 def test_find_nested_prefers_top_level():
@@ -250,24 +266,20 @@ def test_find_nested_prefers_top_level():
         }
     }
     entities = _analyze(by_device, "ebusd")
-    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
     assert ps.topic.read_topic == "ebusd/ctlv2/WaterPressure"
     assert ps.topic.field == "pressv.value"
-
-
-def test_find_nested_top_level_display_pressure():
-    """Top-level DisplaySystemPressure is found directly."""
-    msgs = {"DisplaySystemPressure": {"pressv": {"value": 1.5}}}
-    key, field = _find_nested(msgs, "pressure")
-    assert key == "DisplaySystemPressure"
-    assert field == "pressv.value"
 
 
 def test_rmalbrecht_discovers_pressure_from_state07():
     """Real-world scenario: pressure inside hmu.State07 is discovered."""
     prefix, by_device = load_data_file(DATA_DIR / "rmalbrecht.yml")
     entities = _analyze(by_device, prefix)
-    sensors = [e for e in entities if isinstance(e, DiscoveredPressureSensor)]
+    sensors = [
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    ]
     assert len(sensors) == 1
     ps = sensors[0]
     assert ps.device_id == "hmu"
@@ -878,17 +890,19 @@ def test_water_heater_device_key_and_name():
     assert wh.parent_key == "ebusd"
 
 
-def test_pressure_sensor_lives_on_parent_device():
-    """Pressure sensor is placed directly on the parent device (device_key == parent_key)."""
+def test_pressure_sensor_on_heat_pump_device():
+    """Pressure sensor is placed on the physical device it was found on (Heat Pump sub-device)."""
     by_device = {
         "hmu": {
             "WaterPressure": {"pressv": {"value": 1.7}},
         }
     }
     entities = _analyze(by_device, "ebusd")
-    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
-    assert ps.device_key == "ebusd"
-    assert ps.device_name == "Vaillant"
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
+    assert ps.device_key == "hmu"
+    assert ps.device_name == "Vaillant Heat Pump"
     assert ps.parent_key == "ebusd"
 
 
@@ -928,21 +942,25 @@ def test_circuit_device_key_uses_hc_number():
 def test_custom_display_name_reflected_in_device_name():
     """device_name follows the display_name parameter."""
     by_device = {
-        "dev": {
+        "hmu": {
+            "WaterPressure": {"pressv": {"value": 1.5}},
+        },
+        "ctlv2": {
             "Z1OpMode": {"value": {"value": "auto"}},
             "Z1RoomTemp": {"value": {"value": 20.0}},
             "HwcOpMode": {"value": {"value": "auto"}},
             "HwcTempDesired": {"value": {"value": 55}},
-            "WaterPressure": {"pressv": {"value": 1.5}},
-        }
+        },
     }
     entities = _analyze(by_device, "ebusd", display_name="My Boiler")
     z1 = next(e for e in entities if isinstance(e, DiscoveredClimate))
     wh = next(e for e in entities if isinstance(e, DiscoveredWaterHeater))
-    ps = next(e for e in entities if isinstance(e, DiscoveredPressureSensor))
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
     assert z1.device_name == "My Boiler Zone 1"
     assert wh.device_name == "My Boiler Hot Water"
-    assert ps.device_name == "My Boiler"
+    assert ps.device_name == "My Boiler Heat Pump"
 
 
 # ---------------------------------------------------------------------------
@@ -1052,3 +1070,141 @@ def test_scan_entries_not_emitted_as_entities():
     entities = _analyze(by_device, "ebusd")
     for e in entities:
         assert not e.device_id.lower().startswith("scan."), f"scan.* entry produced entity: {e!r}"
+
+
+# ---------------------------------------------------------------------------
+# DiscoveredSensor: energy / power / COP / pressure discovery
+# ---------------------------------------------------------------------------
+
+
+def test_energy_sensors_discovered_from_heating_data():
+    """Energy and power sensors are discovered when matching topics are present."""
+    prefix, by_device = load_data_file(DATA_DIR / "heating.yml")
+    entities = _analyze(by_device, prefix)
+    sensors = [e for e in entities if isinstance(e, DiscoveredSensor)]
+    assert len(sensors) > 0
+    energy = [e for e in sensors if e.device_class == "energy"]
+    assert len(energy) > 0
+    for e in energy:
+        assert e.unit == "kWh"
+        assert e.state_class == "total_increasing"
+    power = [e for e in sensors if e.device_class == "power"]
+    assert len(power) > 0
+    for e in power:
+        assert e.unit == "kW"
+        assert e.state_class == "measurement"
+
+
+def test_pressure_sensor_discovered_from_heating_data():
+    """Pressure sensor is discovered from standard test data."""
+    prefix, by_device = load_data_file(DATA_DIR / "heating.yml")
+    entities = _analyze(by_device, prefix)
+    pressure = [
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    ]
+    assert len(pressure) == 1
+    ps = pressure[0]
+    assert ps.unit == "bar"
+    assert ps.state_class == "measurement"
+    assert ps.unique_id_prefix == "ebusd_pressure"
+
+
+def test_dhw_energy_sensor_groups_with_hot_water_device():
+    """YieldHwc sensor is routed onto the existing Hot Water device."""
+    by_device = {
+        "hmu": {
+            "YieldHwc": {"value": {"value": 1234.5}},
+        },
+        "ctlv2": {
+            "HwcOpMode": {"value": {"value": "auto"}},
+            "HwcTempDesired": {"value": {"value": 55}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    yield_hwc = next(
+        (
+            e
+            for e in entities
+            if isinstance(e, DiscoveredSensor) and "YieldHwc" in e.topic.read_topic
+        ),
+        None,
+    )
+    assert yield_hwc is not None
+    assert yield_hwc.device_key == "ctlv2_hwc"
+    assert yield_hwc.device_name == "Vaillant Hot Water"
+    assert yield_hwc.parent_key == "ebusd"
+
+
+def test_dhw_energy_sensor_fallback_when_no_hot_water():
+    """DHW-tagged sensors fall back to the heat-pump device when no hwc is discovered."""
+    by_device = {
+        "hmu": {
+            "YieldHwc": {"value": {"value": 1234.5}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    yield_hwc = next(
+        (
+            e
+            for e in entities
+            if isinstance(e, DiscoveredSensor) and "YieldHwc" in e.topic.read_topic
+        ),
+        None,
+    )
+    assert yield_hwc is not None
+    assert yield_hwc.device_key == "hmu"
+    assert yield_hwc.device_name == "Vaillant Heat Pump"
+
+
+def test_general_energy_sensor_on_heat_pump_device():
+    """Non-DHW energy sensor is placed on the heat-pump sub-device."""
+    by_device = {
+        "hmu": {
+            "TotalEnergyUsage": {"value": {"value": 9876.5}},
+        },
+    }
+    entities = _analyze(by_device, "ebusd")
+    sensor = next(
+        (e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "energy"),
+        None,
+    )
+    assert sensor is not None
+    assert sensor.device_key == "hmu"
+    assert sensor.device_name == "Vaillant Heat Pump"
+    assert sensor.parent_key == "ebusd"
+
+
+def test_sensor_unique_id_prefix():
+    """Pressure sensor uses 'ebusd_pressure' prefix; energy uses 'ebusd_energy' default."""
+    by_device = {
+        "hmu": {
+            "WaterPressure": {"pressv": {"value": 1.7}},
+            "TotalEnergyUsage": {"value": {"value": 1000.0}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd")
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
+    en = next(e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "energy")
+    assert ps.unique_id_prefix == "ebusd_pressure"
+    assert en.unique_id_prefix == "ebusd_sensor"
+
+
+def test_sensor_short_name_no_display_prefix():
+    """DiscoveredSensor.name is the short label only (no display_name prefix)."""
+    by_device = {
+        "hmu": {
+            "WaterPressure": {"pressv": {"value": 1.7}},
+            "CopHc": {"value": {"value": 3.5}},
+        }
+    }
+    entities = _analyze(by_device, "ebusd", display_name="My Heat Pump")
+    ps = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and e.device_class == "pressure"
+    )
+    cop = next(
+        e for e in entities if isinstance(e, DiscoveredSensor) and "CopHc" in e.topic.read_topic
+    )
+    assert ps.name == "Water Pressure"
+    assert cop.name == "COP Heating"
