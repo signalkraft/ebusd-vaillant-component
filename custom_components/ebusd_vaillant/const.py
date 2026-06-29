@@ -67,6 +67,17 @@ _STAT_HVAC_ACTION_COOLING = frozenset(
 # Sending ?1 to these names is harmless (unknown names are silently ignored).
 DISCOVERY_DEVICE_NAMES = ["ctlv3", "ctlv2", "hmu", "bai", "bai00"]
 
+# Human-readable labels for well-known ebusd device IDs, used to build
+# device_name for discovered sensors.  Keys are lower-cased device IDs.
+# Unknown device IDs fall back to device_id.upper().
+DEVICE_TYPE_LABELS: dict[str, str] = {
+    "hmu": "Heat Pump",
+    "bai": "Boiler",
+    "bai00": "Boiler",
+    "ctlv2": "Controller",
+    "ctlv3": "Controller",
+}
+
 # Minimal topic set needed to trigger entity discovery in _analyze().
 # Once entities are discovered, full priming kicks in via _prime_values().
 _DISCOVERY_TOPICS_HWC = ["HwcOpMode", "HwcTempDesired"]
