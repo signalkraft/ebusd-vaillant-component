@@ -55,14 +55,14 @@ class _EbusdNumericSensor(SensorEntity):
         def _handle(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, self._field)
             if value is not None:
                 try:
                     self._attr_native_value = float(value)
                     self.async_write_ha_state()
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     pass
 
         self._unsubscribe = await mqtt.async_subscribe(self.hass, self._read_topic, _handle)

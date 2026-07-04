@@ -220,7 +220,7 @@ class EbusdClimateEntity(ClimateEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:
@@ -282,28 +282,28 @@ class EbusdClimateEntity(ClimateEntity):
     def _handle_current_temp(self, value: Any) -> None:
         try:
             self._attr_current_temperature = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
     def _handle_target_temp(self, value: Any) -> None:
         try:
             self._attr_target_temperature = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
     def _handle_target_high(self, value: Any) -> None:
         try:
             self._attr_target_temperature_high = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
     def _handle_target_low(self, value: Any) -> None:
         try:
             self._attr_target_temperature_low = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
@@ -439,7 +439,7 @@ class _EbusdSetpointBase(ClimateEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:
@@ -516,21 +516,21 @@ class EbusdFlowTempRangeEntity(_EbusdSetpointBase):
     def _handle_min(self, value: Any) -> None:
         try:
             self._attr_target_temperature_low = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
     def _handle_max(self, value: Any) -> None:
         try:
             self._attr_target_temperature_high = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     @callback
     def _handle_current_flow_temp(self, value: Any) -> None:
         try:
             self._attr_current_temperature = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     async def async_set_temperature(self, **kwargs: Any) -> None:

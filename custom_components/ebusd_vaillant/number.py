@@ -71,7 +71,7 @@ class EbusdCoolTempLimitEntity(NumberEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:
@@ -98,7 +98,7 @@ class EbusdCoolTempLimitEntity(NumberEntity):
     def _handle_value(self, value: Any) -> None:
         try:
             self._attr_native_value = float(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
 
     async def async_set_native_value(self, value: float) -> None:

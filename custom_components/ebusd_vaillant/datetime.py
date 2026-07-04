@@ -139,7 +139,7 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:
@@ -239,7 +239,7 @@ class EbusdHolidayEntity(DateTimeEntity):
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 payload = msg.payload
             value = _get(payload, topic_cfg.field)
             if value is not None:

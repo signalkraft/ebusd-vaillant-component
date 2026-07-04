@@ -256,7 +256,7 @@ class EbusdCoordinator:
 
         try:
             payload = json.loads(msg.payload)
-        except json.JSONDecodeError, ValueError:
+        except (json.JSONDecodeError, ValueError):
             payload = msg.payload
 
         device_msgs = self._by_device.setdefault(device, {})

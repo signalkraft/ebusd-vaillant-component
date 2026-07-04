@@ -351,7 +351,7 @@ def _is_number(v: Any) -> bool:
     try:
         float(v)
         return True
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return False
 
 
