@@ -455,7 +455,9 @@ async def test_set_preset_boost_from_away_clears_holiday_and_starts_veto(
     )
     published = _published(mqtt_client_mock)
     assert f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoTemp/set" in published  # boost started
-    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.01.2015"  # away cleared
+    assert (
+        published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.01.2015"
+    )  # away cleared
 
 
 # ---------------------------------------------------------------------------
