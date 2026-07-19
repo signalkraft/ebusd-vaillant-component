@@ -18,6 +18,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.ebusd_vaillant.const import (
     CONF_AWAY_MODE_DURATION,
     CONF_QUICK_VETO_DURATION,
+    DEFAULT_QUICK_VETO_TEMP,
     DOMAIN,
 )
 
@@ -374,6 +375,89 @@ async def test_set_preset_none_from_boost_cancels_quick_veto(hass, setup_entry, 
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoDuration/set") == "0"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate/set") == "01.01.2015"
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndTime/set") == "00:00:00"
+
+
+async def test_set_preset_boost_starts_quick_veto(hass, setup_entry, mqtt_client_mock):
+    """Selecting the Boost preset starts a quick veto (issue #6).
+
+    Regression: previously ``set_preset_mode(PRESET_BOOST)`` had no branch, so the
+    advertised preset silently did nothing. The veto uses the configured quick-veto
+    temperature (same write path/value as the Quick Veto switch), not the max temp.
+    """
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_preset_mode",
+        {"entity_id": entity_id, "preset_mode": PRESET_BOOST},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    qv_temp = published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoTemp/set")
+    assert qv_temp is not None, "Boost preset must start a quick veto (Z1QuickVetoTemp/set)"
+    assert float(qv_temp) == DEFAULT_QUICK_VETO_TEMP
+    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoDuration/set") == "3"
+
+
+async def test_set_preset_boost_noop_when_already_boosting(hass, setup_entry, mqtt_client_mock):
+    """Re-selecting Boost while a quick veto is already active publishes nothing."""
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndDate",
+        json.dumps({"value": {"value": "01.01.2099"}}),
+    )
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoEndTime",
+        json.dumps({"value": {"value": "00:00:00"}}),
+    )
+    await hass.async_block_till_done()
+    assert _climate(hass).attributes.get("preset_mode") == PRESET_BOOST
+
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_preset_mode",
+        {"entity_id": entity_id, "preset_mode": PRESET_BOOST},
+        blocking=True,
+    )
+    assert f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoTemp/set" not in _published(mqtt_client_mock)
+
+
+async def test_set_preset_boost_from_away_clears_holiday_and_starts_veto(
+    hass, setup_entry, mqtt_client_mock
+):
+    """AWAY -> BOOST both clears the holiday period and starts a quick veto."""
+    await _fire(hass)
+    entity_id = _climate(hass).entity_id
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod",
+        json.dumps({"value": {"value": "01.01.2020"}}),
+    )
+    async_fire_mqtt_message(
+        hass,
+        f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayEndPeriod",
+        json.dumps({"value": {"value": "01.01.2099"}}),
+    )
+    await hass.async_block_till_done()
+    assert _climate(hass).attributes.get("preset_mode") == PRESET_AWAY
+
+    mqtt_client_mock.publish.reset_mock()
+    await hass.services.async_call(
+        "climate",
+        "set_preset_mode",
+        {"entity_id": entity_id, "preset_mode": PRESET_BOOST},
+        blocking=True,
+    )
+    published = _published(mqtt_client_mock)
+    assert f"{MQTT_PREFIX}/{DEVICE}/Z1QuickVetoTemp/set" in published  # boost started
+    assert (
+        published.get(f"{MQTT_PREFIX}/{DEVICE}/Z1HolidayStartPeriod/set") == "01.01.2015"
+    )  # away cleared
 
 
 # ---------------------------------------------------------------------------

@@ -27,8 +27,10 @@ from .const import (
     _STAT_HVAC_ACTION_HEATING,
     CONF_AWAY_MODE_DURATION,
     CONF_QUICK_VETO_DURATION,
+    CONF_QUICK_VETO_TEMP,
     DEFAULT_AWAY_MODE_DURATION,
     DEFAULT_QUICK_VETO_DURATION,
+    DEFAULT_QUICK_VETO_TEMP,
     DOMAIN,
     EBUSD_TO_HA_HVAC,
     HA_TO_EBUSD_HVAC,
@@ -68,6 +70,7 @@ async def async_setup_entry(
     flow_temp_by_key: dict[str, EbusdFlowTempRangeEntity] = {}
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
     quick_veto_duration = entry.options.get(CONF_QUICK_VETO_DURATION, DEFAULT_QUICK_VETO_DURATION)
+    quick_veto_temp = entry.options.get(CONF_QUICK_VETO_TEMP, DEFAULT_QUICK_VETO_TEMP)
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -78,7 +81,9 @@ async def async_setup_entry(
                         entities_by_name[e.name].async_update_config(e, coordinator)
                     )
                 else:
-                    entity = EbusdClimateEntity(hass, e, away_duration, quick_veto_duration)
+                    entity = EbusdClimateEntity(
+                        hass, e, away_duration, quick_veto_duration, quick_veto_temp
+                    )
                     entities_by_name[e.name] = entity
                     new.append(entity)
             elif isinstance(e, DiscoveredFlowTempRange):
@@ -107,11 +112,13 @@ class EbusdClimateEntity(ClimateEntity):
         config: DiscoveredClimate,
         away_duration: int = DEFAULT_AWAY_MODE_DURATION,
         quick_veto_duration: int = DEFAULT_QUICK_VETO_DURATION,
+        quick_veto_temp: float = DEFAULT_QUICK_VETO_TEMP,
     ) -> None:
         self.hass = hass
         self._config = config
         self._away_duration = away_duration
         self._quick_veto_duration = quick_veto_duration
+        self._quick_veto_temp = quick_veto_temp
         self._attr_name = None  # primary entity of the Zone device; device name is the label
         self._attr_unique_id = f"ebusd_climate_{config.key}"
         self._attr_device_info = build_device_info(config)
@@ -367,6 +374,10 @@ class EbusdClimateEntity(ClimateEntity):
         current = self.preset_mode
         if current == PRESET_BOOST and preset_mode != PRESET_BOOST:
             await self._cancel_quick_veto()
+        if preset_mode == PRESET_BOOST and current != PRESET_BOOST:
+            # Boost = start a quick veto at the configured quick-veto temperature for
+            # the configured duration, the same write path as the Quick Veto switch.
+            await self._publish_quick_veto(self._quick_veto_temp)
         if preset_mode == PRESET_AWAY and current != PRESET_AWAY:
             today = datetime.now().date()
             start_str = today.strftime(_DATE_FMT)
