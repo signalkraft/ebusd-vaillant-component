@@ -65,7 +65,7 @@ class DiscoveredFlowTempRange:
     current_flow_temp: TopicConfig | None = None  # Hc{n}FlowTemp
     run_data_status: TopicConfig | None = None
     min_temp: float = 15.0
-    max_temp: float = 75.0
+    max_temp: float = 90.0
     temp_step: float = 1.0
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""

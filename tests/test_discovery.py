@@ -919,6 +919,8 @@ def test_circuit_flow_temp_and_cool_temp_share_device_key():
     entities = _analyze(by_device, "ebusd", zones_with_temp_only=False)
     flow = next(e for e in entities if isinstance(e, DiscoveredFlowTempRange))
     cool = next(e for e in entities if isinstance(e, DiscoveredCoolTempLimit))
+    assert flow.min_temp == 15.0
+    assert flow.max_temp == 90.0
     assert flow.device_key == cool.device_key == "ctlv2_hc1"
     assert flow.device_name == cool.device_name == "Vaillant Circuit 1"
     assert flow.parent_key == cool.parent_key == "ebusd"
