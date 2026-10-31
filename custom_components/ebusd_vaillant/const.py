@@ -80,9 +80,9 @@ DEVICE_TYPE_LABELS: dict[str, str] = {
 
 # Minimal topic set needed to trigger entity discovery in _analyze().
 # Once entities are discovered, full priming kicks in via _prime_values().
-_DISCOVERY_TOPICS_HWC = ["HwcOpMode", "HwcTempDesired"]
+_DISCOVERY_TOPICS_HWC = ["HwcOpMode", "HwcTempDesired", "HwcTimer_Timeframes", "CcTimer_Timeframes"]
 _DISCOVERY_TOPICS_PRESSURE = ["WaterPressure"]
-_DISCOVERY_TOPICS_ZONE = ["Z{n}OpMode", "Z{n}RoomTemp"]
+_DISCOVERY_TOPICS_ZONE = ["Z{n}OpMode", "Z{n}RoomTemp", "Z{n}Timer_Timeframes"]
 _DISCOVERY_TOPICS_HC = [
     "Hc{n}MinFlowTempDesired",
     "Hc{n}MinCoolTempDesired",

@@ -7,6 +7,7 @@ from custom_components.ebusd_vaillant.discovery import (
     DiscoveredCoolTempLimit,
     DiscoveredFlowTempRange,
     DiscoveredSensor,
+    DiscoveredTimeProgram,
     DiscoveredWaterHeater,
     _analyze,
     _find_topic,
@@ -38,7 +39,8 @@ def test_entity_types_are_valid(data_file):
             | DiscoveredWaterHeater
             | DiscoveredSensor
             | DiscoveredFlowTempRange
-            | DiscoveredCoolTempLimit,
+            | DiscoveredCoolTempLimit
+            | DiscoveredTimeProgram,
         )
 
 
