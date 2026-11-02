@@ -5,7 +5,7 @@ Each time program comes with standard Home Assistant entities, so a plain
 slot count and the slot times.
 
 !!! note
-    Entity IDs depend on your device names. Replace `ebusd_vaillant` with 
+    Entity IDs depend on your device names. Replace `ebusd_vaillant` with
     your device (for example `heating_vaillant_local_ebusd_controller`). Find the
     exact IDs under **Settings** >> **Devices**.
 

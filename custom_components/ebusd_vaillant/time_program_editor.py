@@ -50,7 +50,9 @@ def to_time(value: str | None) -> time | None:
 def from_time(value: time) -> str:
     """datetime.time -> ``HH:MM``; 23:59 is written as 24:00."""
     # The controller only accepts 10-minute steps: snap to the nearest one.
-    minutes = min(round((value.hour * 60 + value.minute) / TIME_STEP_MINUTES) * TIME_STEP_MINUTES, 24 * 60)
+    minutes = min(
+        round((value.hour * 60 + value.minute) / TIME_STEP_MINUTES) * TIME_STEP_MINUTES, 24 * 60
+    )
     if value.hour == 23 and value.minute == 59:
         minutes = 24 * 60
     return f"{minutes // 60:02d}:{minutes % 60:02d}"

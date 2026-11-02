@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
 
 from .device import build_device_info
-from .discovery import TIMER_DAYS, TIMER_SLOTS_PER_DAY, DiscoveredTimeProgram
+from .discovery import TIMER_SLOTS_PER_DAY, DiscoveredTimeProgram
 from .time_program import DAY_KEYS
 from .time_program_editor import TimeProgramEditor, from_time, get_editor, to_time
 
