@@ -74,7 +74,7 @@ def _entity_sig(e: DiscoveredEntity) -> tuple:
             e.sf_mode is not None,
         )
     if isinstance(e, DiscoveredTimeProgram):
-        return (e.key, e.name, e.timeframes.read_topic)
+        return (e.key, e.name, e.timeframes.read_topic, e.device_key)
     return (e.name,)
 
 

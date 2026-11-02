@@ -33,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 TIME_STEP_MINUTES = 10
 # Edits are collected and sent to the bus this many seconds after the last one
 WRITE_DELAY_SECONDS = 10
+DEFAULT_TEMPERATURE = 24.0
 EDITORS_KEY = f"{DOMAIN}_time_program_editors"
 
 
@@ -80,11 +81,16 @@ class TimeProgramEditor:
         self.slots: dict[str, list[tuple[str, str] | None]] = {
             d: [None] * TIMER_SLOTS_PER_DAY for d in DAY_KEYS
         }
+        # day -> slot index -> target temperature (heating zones only)
+        self.temps: dict[str, list[float | None]] = {
+            d: [None] * TIMER_SLOTS_PER_DAY for d in DAY_KEYS
+        }
+        self.uses_temperature = config.program == "heating"
         self._listeners: list[Callable[[], None]] = []
         self._unsubs: list[Callable[[], None]] = []
         self._users = 0
         # day -> (slots, count) edited locally, not yet sent to the bus
-        self._pending: dict[str, tuple[list[tuple[str, str]], int]] = {}
+        self._pending: dict[str, tuple[list[tuple[str, str]], list[float | None], int]] = {}
         self._unsub_timer: Callable[[], None] | None = None
         timeframes_topic = config.timeframes.read_topic
         self._base, _, tf_name = timeframes_topic.rpartition("/")
@@ -108,6 +114,9 @@ class TimeProgramEditor:
 
     def slot(self, idx: int) -> tuple[str, str] | None:
         return self.slots[self.selected_day][idx]
+
+    def temp(self, idx: int) -> float | None:
+        return self.temps[self.selected_day][idx]
 
     @callback
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -171,6 +180,11 @@ class TimeProgramEditor:
             values = payload_values(_decode(msg.payload))
             if len(values) >= 2 and _to_minutes(values[0]) is not None:
                 self.slots[day][idx] = (str(values[0]), str(values[1]))
+                if self.uses_temperature:
+                    try:
+                        self.temps[day][idx] = float(values[2])
+                    except IndexError, TypeError, ValueError:
+                        self.temps[day][idx] = None
                 self._notify()
 
         return _handle
@@ -178,14 +192,21 @@ class TimeProgramEditor:
     # -- writing -------------------------------------------------------------
 
     @callback
-    def _stage_day(self, day: str, slots: list[tuple[str, str]], count: int | None = None) -> None:
+    def _stage_day(
+        self,
+        day: str,
+        slots: list[tuple[str, str]],
+        temps: list[float | None],
+        count: int | None = None,
+    ) -> None:
         """Apply an edit locally and (re)start the send timer."""
         count = len(slots) if count is None else count
         for idx, slot in enumerate(slots):
             self.slots[day][idx] = slot
+            self.temps[day][idx] = temps[idx]
         if self.counts is not None:
             self.counts[DAY_KEYS.index(day)] = count
-        self._pending[day] = (slots, count)
+        self._pending[day] = (slots, temps, count)
         if self._unsub_timer:
             self._unsub_timer()
         self._unsub_timer = async_call_later(self.hass, WRITE_DELAY_SECONDS, self._timer_fired)
@@ -202,11 +223,13 @@ class TimeProgramEditor:
             self._unsub_timer()
             self._unsub_timer = None
         pending, self._pending = self._pending, {}
-        for day, (slots, count) in pending.items():
-            await self._send_day(day, slots, count)
+        for day, (slots, temps, count) in pending.items():
+            await self._send_day(day, slots, temps, count)
         self._notify()
 
-    async def _send_day(self, day: str, slots: list[tuple[str, str]], count: int) -> None:
+    async def _send_day(
+        self, day: str, slots: list[tuple[str, str]], temps: list[float | None], count: int
+    ) -> None:
         """Rewrite a whole day: slots 0..n-1 in order, each carrying the count.
 
         The controller ignores a lone slot write; it only accepts a day when all
@@ -215,6 +238,10 @@ class TimeProgramEditor:
         topic = f"{self._base}/{self._msg_prefix}_{TIMER_DAYS[DAY_KEYS.index(day)]}/set"
         for idx, (start, end) in enumerate(slots):
             payload = f"{idx};{count};{start};{end}"
+            if self.uses_temperature:
+                payload += f";{temps[idx] if temps[idx] is not None else DEFAULT_TEMPERATURE}"
+            elif self.config.program == "hot_water":
+                payload += ";-"  # the app sends "no slot temperature" for hot water
             _LOGGER.debug("Writing time program: %s <- %s", topic, payload)
             await mqtt.async_publish(self.hass, topic, payload)
         # ask ebusd to re-read the controller
@@ -242,6 +269,24 @@ class TimeProgramEditor:
             result.append((start, end))
         return result
 
+    def _day_temps(self, day: str, count: int) -> list[float | None]:
+        """Slot temperatures of *day*; unset ones copy the previous slot."""
+        result: list[float | None] = []
+        for idx in range(count):
+            temp = self.temps[day][idx]
+            if self.uses_temperature and temp is None:
+                temp = result[-1] if result and result[-1] is not None else DEFAULT_TEMPERATURE
+            result.append(temp)
+        return result
+
+    async def async_set_slot_temp(self, idx: int, temp: float) -> None:
+        day = self.selected_day
+        count = max(self.count(day), idx + 1)
+        slots = self._day_slots(day, count)
+        temps = self._day_temps(day, count)
+        temps[idx] = temp
+        self._stage_day(day, slots, temps)
+
     async def async_set_slot_time(
         self, idx: int, *, start: str | None = None, end: str | None = None
     ):
@@ -262,13 +307,13 @@ class TimeProgramEditor:
                 f"End time must be after start time (got {new_start} - {new_end})"
             )
         slots[idx] = (new_start, new_end)
-        self._stage_day(day, slots)
+        self._stage_day(day, slots, self._day_temps(day, count))
 
     async def async_set_count(self, count: int) -> None:
         """Change the number of slots of the selected day (whole day is sent after the delay)."""
         day = self.selected_day
         if count == 0:
             first = self.slots[day][0] or ("00:00", "00:00")
-            self._stage_day(day, [first], count=0)
+            self._stage_day(day, [first], self._day_temps(day, 1), count=0)
             return
-        self._stage_day(day, self._day_slots(day, count))
+        self._stage_day(day, self._day_slots(day, count), self._day_temps(day, count))

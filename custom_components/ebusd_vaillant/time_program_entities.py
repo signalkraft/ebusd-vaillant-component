@@ -7,6 +7,7 @@ from datetime import time
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.time import TimeEntity
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
 
@@ -15,8 +16,7 @@ from .discovery import TIMER_DAYS, TIMER_SLOTS_PER_DAY, DiscoveredTimeProgram
 from .time_program import DAY_KEYS
 from .time_program_editor import TimeProgramEditor, from_time, get_editor, to_time
 
-# Only programs without a target temperature are editable for now.
-EDITABLE_PROGRAMS = ("circulation",)
+EDITABLE_PROGRAMS = ("circulation", "hot_water", "heating")
 
 
 def editable(config: object) -> bool:
@@ -109,3 +109,29 @@ class EbusdTimeProgramSlotTime(_EditorEntity, TimeEntity):
             await self._editor.async_set_slot_time(self._idx, end=text)
         else:
             await self._editor.async_set_slot_time(self._idx, start=text)
+
+
+class EbusdTimeProgramSlotTemp(_EditorEntity, NumberEntity):
+    """Target temperature of one slot (heating zones)."""
+
+    _attr_icon = "mdi:thermometer"
+    _attr_native_min_value = 5
+    _attr_native_max_value = 30
+    _attr_native_step = 0.5
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_mode = NumberMode.BOX
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredTimeProgram, idx: int) -> None:
+        super().__init__(hass, config, f"slot{idx + 1}_temp", f"slot {idx + 1} temperature")
+        self._idx = idx
+
+    @property
+    def available(self) -> bool:
+        return self._editor.ready and self._idx < self._editor.count()
+
+    @property
+    def native_value(self) -> float | None:
+        return self._editor.temp(self._idx)
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self._editor.async_set_slot_temp(self._idx, value)

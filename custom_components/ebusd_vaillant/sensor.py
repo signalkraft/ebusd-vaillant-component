@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
-from .device import build_device_info
+from .device import build_device_info, move_time_program_entities
 from .discovery import DiscoveredSensor, DiscoveredTimeProgram, _get
 from .time_program import build_schedule, next_change, parse_slot_counts, slot_at
 
@@ -36,9 +36,13 @@ async def async_setup_entry(
             if isinstance(e, DiscoveredSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdSensor(hass, e))
-            elif isinstance(e, DiscoveredTimeProgram) and e.key not in seen:
-                seen.add(e.key)
-                new.append(EbusdTimeProgramSensor(hass, e))
+            elif isinstance(e, DiscoveredTimeProgram):
+                if e.key not in seen:
+                    seen.add(e.key)
+                    new.append(EbusdTimeProgramSensor(hass, e))
+                else:
+                    # device assignment may have changed since the first pass
+                    move_time_program_entities(hass, entry, e)
         if new:
             async_add_entities(new)
 
