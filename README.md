@@ -14,6 +14,8 @@ controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 - **Hot water (HWC)**  -  operation mode, target/current temperature
 - **Water pressure sensor**  -  live pressure reading in bar
 - **Preset modes**  -  Boost (quick veto) and Away (holiday period)
+- **Time programs**  -  weekly schedules of heating zones, hot water and circulation as sensors (state, full schedule, next change)
+- **Time program editor**  -  edit schedules with standard HA controls: pick a weekday, then set the slot count and each slot's start/end time (and target temperature for heating zones). Times snap to the controller's 10-minute steps. Edits are collected and sent to the controller, 10 seconds after the last change
 
 ## Requirements
 
