@@ -76,7 +76,7 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._away_duration = away_duration
         self._attr_name = None  # primary entity of the Hot Water device; device name is the label
         self._attr_unique_id = f"ebusd_water_heater_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step

@@ -60,7 +60,7 @@ class EbusdCoolTempLimitEntity(NumberEntity):
         self._unsubscribe: list[Any] = []
         self._attr_name = "Min Cooling Temperature"
         self._attr_unique_id = f"ebusd_cool_temp_limit_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._attr_native_min_value = config.min_temp
         self._attr_native_max_value = config.max_temp
         self._attr_native_step = config.temp_step

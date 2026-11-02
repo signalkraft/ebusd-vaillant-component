@@ -118,7 +118,7 @@ class EbusdQuickVetoEndEntity(DateTimeEntity):
         self._config = config
         self._attr_name = "Quick Veto End"
         self._attr_unique_id = f"ebusd_quick_veto_end_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._attr_native_value: datetime | None = None
         self._end_date: str | None = None
         self._end_time: str | None = None
@@ -199,7 +199,7 @@ class EbusdHolidayEntity(DateTimeEntity):
         self._time_attr = time_attr
         self._attr_name = name_suffix
         self._attr_unique_id = f"ebusd_{unique_id_suffix}_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._attr_native_value: datetime | None = None
         self._date: str | None = None
         self._time: str | None = None
