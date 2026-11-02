@@ -14,6 +14,7 @@ nav = [
     { "Component" = [
         "entities.md",
         "options.md",
+        "dashboard-cards.md",
         "services.md",
     ] },
     { "Contributing" = [
