@@ -3,6 +3,12 @@
     "sensor": {
       "ebusd_pressure": {
         "default": "mdi:gauge"
+      },
+      "ebusd_time_program": {
+        "default": "mdi:calendar-clock",
+        "state": {
+          "inactive": "mdi:calendar-remove"
+        }
       }
     },
     "water_heater": {

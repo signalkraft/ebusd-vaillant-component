@@ -13,3 +13,4 @@ Configuration options available for the ebusd Vaillant integration.
 | `quick_veto_duration` | Number of hours the quick veto lasts when triggered | `3` |
 | `max_zones` | Limits how many zone entities are created | `4` |
 | `prime_poll_values` | Tries to request typical MQTT topic names to be able to show values immediately on startup. If disabled, entities become available as MQTT values are published | `on` |
+| `zones_with_temp_only` | When enabled (default), only create climate entities for zones that report a current temperature. When disabled, create entities for all zones up to the configured maximum. | `on` |

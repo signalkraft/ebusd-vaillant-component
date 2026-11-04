@@ -8,6 +8,14 @@
           "boost": "Boost"
         }
       }
+    },
+    "sensor": {
+      "ebusd_time_program": {
+        "state": {
+          "active": "Aktiv",
+          "inactive": "Inaktiv"
+        }
+      }
     }
   },
   "config": {

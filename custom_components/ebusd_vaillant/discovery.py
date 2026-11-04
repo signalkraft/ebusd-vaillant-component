@@ -146,6 +146,48 @@ class DiscoveredWaterHeater:
     hw_version: str = ""
 
 
+# Weekday names as used in ebusd timer message names (Z1Timer_Monday0 ...).
+# Order matters: it matches the per-day fields of *Timer_Timeframes
+# (slotcount = Monday, slotcount_1 = Tuesday, ..., slotcount_6 = Sunday).
+TIMER_DAYS: tuple[str, ...] = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
+# Number of readable slot messages per day (Z1Timer_Monday0 .. Z1Timer_Monday2).
+TIMER_SLOTS_PER_DAY = 3
+
+
+@dataclass
+class DiscoveredTimeProgram:
+    """Weekly time program (Zeitprogramm) of a zone, hot water or circulation.
+
+    Read-only: built from the ebusd ``*Timer_Timeframes`` (slot count per day)
+    and ``*Timer_{Day}{slot}`` (start, end, optional temperature) messages.
+    """
+
+    device_id: str
+    key: str
+    name: str
+    program: str  # "heating" | "hot_water" | "circulation"
+    timeframes: TopicConfig
+    # lower-case weekday -> TIMER_SLOTS_PER_DAY slot topics, in slot order
+    slots: dict[str, list[TopicConfig]]
+    has_temperature: bool = True
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
 @dataclass(frozen=True)
 class SensorConfig:
     """Descriptor for an auto-discovered numeric sensor.
@@ -416,6 +458,14 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
     "hc_min_cool_temp": ["Hc{n}MinCoolTempDesired", "Hc{n}MinCoolingTempDesired"],
     "hc_current_flow_temp": ["Hc{n}FlowTemp", "DisplayedHc{n}FlowTemp", "Hc{n}FlowTempCurrent"],
+    # Time programs (b555 messages in ctlv2 / 15.ctlv2.csv).
+    # "{day}" is a TIMER_DAYS entry, "{slot}" is 0..TIMER_SLOTS_PER_DAY-1.
+    "zone_timer_timeframes": ["Z{n}Timer_Timeframes"],
+    "zone_timer_slot": ["Z{n}Timer_{day}{slot}"],
+    "hwc_timer_timeframes": ["HwcTimer_Timeframes"],
+    "hwc_timer_slot": ["HwcTimer_{day}{slot}"],
+    "cc_timer_timeframes": ["CcTimer_Timeframes"],
+    "cc_timer_slot": ["CcTimer_{day}{slot}"],
 }
 
 
@@ -492,6 +542,55 @@ def _topic_config(
     return TopicConfig(read_topic=read, field=field, write_topic=write, write_key=write_key)
 
 
+def payload_values(payload: Any) -> list[Any]:
+    """Return the field values of a multi-field ebusd payload, in field order.
+
+    Handles both JSON layouts ebusd uses for multi-field messages:
+
+    * named fields: ``{"htm": {"value": "07:00"}, "htm_1": {"value": "20:30"}}``
+    * indexed fields: ``{"0": {"name": "slotCount", "value": 1}, "1": {...}}``
+    """
+    if not isinstance(payload, dict):
+        return []
+    items = list(payload.items())
+    if items and all(k.isdigit() for k, _ in items):
+        items.sort(key=lambda kv: int(kv[0]))
+    return [v.get("value") if isinstance(v, dict) else v for _, v in items]
+
+
+def _discover_time_program(
+    msgs: dict[str, Any],
+    prefix: str,
+    device_id: str,
+    kind: str,
+    **fmt_kwargs: Any,
+) -> tuple[TopicConfig, dict[str, list[TopicConfig]]] | None:
+    """Resolve the timeframes + slot topics for one time program.
+
+    *kind* is the role prefix ("zone", "hwc" or "cc").  Returns ``None`` when
+    neither the Timeframes message nor any slot message is present on the
+    device.  Slot messages not received yet fall back to their canonical names
+    so they can be primed (requested via ``/get``) and subscribed to.
+    """
+    tf_role = f"{kind}_timer_timeframes"
+    slot_role = f"{kind}_timer_slot"
+    tf_key = _resolve_key(msgs, tf_role, **fmt_kwargs)
+    slots: dict[str, list[TopicConfig]] = {}
+    any_slot = False
+    for day in TIMER_DAYS:
+        day_slots: list[TopicConfig] = []
+        for slot in range(TIMER_SLOTS_PER_DAY):
+            key = _resolve_key(msgs, slot_role, day=day, slot=slot, **fmt_kwargs)
+            any_slot = any_slot or key is not None
+            name = key or _ROLE_PATTERNS[slot_role][0].format(day=day, slot=slot, **fmt_kwargs)
+            day_slots.append(_topic_config(prefix, device_id, name, "", writable=False))
+        slots[day.lower()] = day_slots
+    if tf_key is None and not any_slot:
+        return None
+    tf_name = tf_key or _ROLE_PATTERNS[tf_role][0].format(**fmt_kwargs)
+    return _topic_config(prefix, device_id, tf_name, "", writable=False), slots
+
+
 def _analyze(
     by_device: dict[str, dict[str, Any]],
     prefix: str,
@@ -504,6 +603,7 @@ def _analyze(
     | DiscoveredSensor
     | DiscoveredFlowTempRange
     | DiscoveredCoolTempLimit
+    | DiscoveredTimeProgram
 ]:
     """Build a list of discovered entities from per-device message dicts."""
     entities: list[
@@ -512,6 +612,7 @@ def _analyze(
         | DiscoveredSensor
         | DiscoveredFlowTempRange
         | DiscoveredCoolTempLimit
+        | DiscoveredTimeProgram
     ] = []
 
     # Resolve run_data_status once across all devices (e.g. RunDataStatuscode lives on hmu,
@@ -617,6 +718,48 @@ def _analyze(
                     ),
                     device_key=f"{device_id}_hwc",
                     device_name=f"{display_name} Hot Water",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
+                )
+            )
+
+        # --- Hot water + circulation time programs (HwcTimer_*, CcTimer_*) ---
+        # Placed on the Hot Water device when one exists, else on this device.
+        if _hwc_owner is not None:
+            _tp_dev_key = f"{_hwc_owner}_hwc"
+            _tp_dev_name = f"{display_name} Hot Water"
+        else:
+            _tp_dev_key = device_id
+            _tp_dev_name = (
+                f"{display_name} {DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())}"
+            )
+        for kind, program, label, has_temp in (
+            ("hwc", "hot_water", "Hot Water", True),
+            ("cc", "circulation", "Circulation", False),
+        ):
+            found = _discover_time_program(msgs, prefix, device_id, kind)
+            if found is None:
+                continue
+            tf_cfg, slot_cfgs = found
+            if kind == "cc":
+                # No circulation pump configured: every day has 0 slots.
+                counts = payload_values(msgs.get(tf_cfg.read_topic.rsplit("/", 1)[1]))
+                if counts and all(c == 0 for c in counts):
+                    continue
+            entities.append(
+                DiscoveredTimeProgram(
+                    device_id=device_id,
+                    key=f"{device_id}_{kind}_timer",
+                    name=f"{label} Time Program",
+                    program=program,
+                    timeframes=tf_cfg,
+                    slots=slot_cfgs,
+                    has_temperature=has_temp,
+                    device_key=_tp_dev_key,
+                    device_name=_tp_dev_name,
                     parent_key=prefix,
                     manufacturer=_manufacturer,
                     model=_model,
@@ -855,6 +998,29 @@ def _analyze(
                     hw_version=_hw,
                 )
             )
+
+            # Zone time program (Z{n}Timer_*), on the same Zone device.
+            found = _discover_time_program(msgs, prefix, device_id, "zone", n=zone)
+            if found is not None:
+                tf_cfg, slot_cfgs = found
+                entities.append(
+                    DiscoveredTimeProgram(
+                        device_id=device_id,
+                        key=f"{device_id}_zone{zone}_timer",
+                        name="Heating Time Program",
+                        program="heating",
+                        timeframes=tf_cfg,
+                        slots=slot_cfgs,
+                        has_temperature=True,
+                        device_key=f"{device_id}_zone{zone}",
+                        device_name=f"{display_name} Zone {zone}",
+                        parent_key=prefix,
+                        manufacturer=_manufacturer,
+                        model=_model,
+                        sw_version=_sw,
+                        hw_version=_hw,
+                    )
+                )
 
         # --- Auto-discovered sensors (pressure, energy, power, COP) ---
         _dev_label = DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())

@@ -16,7 +16,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredCoolTempLimit, TopicConfig, _get
+from .discovery import TIMER_SLOTS_PER_DAY, DiscoveredCoolTempLimit, TopicConfig, _get
+from .time_program_entities import EbusdTimeProgramSlotCount, EbusdTimeProgramSlotTemp, editable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,11 +29,19 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     cool_temp_by_key: dict[str, EbusdCoolTempLimitEntity] = {}
+    time_program_keys: set[str] = set()
 
     def _on_discover(entities: list) -> None:
         new = []
         for e in entities:
-            if isinstance(e, DiscoveredCoolTempLimit):
+            if editable(e) and e.key not in time_program_keys:
+                time_program_keys.add(e.key)
+                new.append(EbusdTimeProgramSlotCount(hass, e))
+                if e.program == "heating":
+                    new.extend(
+                        EbusdTimeProgramSlotTemp(hass, e, idx) for idx in range(TIMER_SLOTS_PER_DAY)
+                    )
+            elif isinstance(e, DiscoveredCoolTempLimit):
                 if e.key not in cool_temp_by_key:
                     entity = EbusdCoolTempLimitEntity(hass, e, coordinator)
                     cool_temp_by_key[e.key] = entity

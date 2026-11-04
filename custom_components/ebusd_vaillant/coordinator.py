@@ -31,6 +31,7 @@ from .discovery import (
     DiscoveredCoolTempLimit,
     DiscoveredFlowTempRange,
     DiscoveredSensor,
+    DiscoveredTimeProgram,
     DiscoveredWaterHeater,
     TopicConfig,
     _analyze,
@@ -40,10 +41,17 @@ from .discovery import (
 
 _LOGGER = logging.getLogger(__name__)
 
-DiscoveredEntity = DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor
+DiscoveredEntity = (
+    DiscoveredClimate
+    | DiscoveredWaterHeater
+    | DiscoveredSensor
+    | DiscoveredFlowTempRange
+    | DiscoveredCoolTempLimit
+    | DiscoveredTimeProgram
+)
 
 
-def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor) -> tuple:
+def _entity_sig(e: DiscoveredEntity) -> tuple:
     """Return a signature tuple that changes when an entity gains new topic configuration."""
     if isinstance(e, DiscoveredClimate):
         return (
@@ -65,6 +73,8 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.holiday_end_time is not None,
             e.sf_mode is not None,
         )
+    if isinstance(e, DiscoveredTimeProgram):
+        return (e.key, e.name, e.timeframes.read_topic, e.device_key)
     return (e.name,)
 
 
@@ -188,6 +198,11 @@ class EbusdCoordinator:
         for entity in entities:
             if isinstance(entity, DiscoveredSensor):
                 topics.add(entity.topic.read_topic)
+                continue
+            if isinstance(entity, DiscoveredTimeProgram):
+                topics.add(entity.timeframes.read_topic)
+                for day_slots in entity.slots.values():
+                    topics.update(cfg.read_topic for cfg in day_slots)
                 continue
             if isinstance(entity, DiscoveredWaterHeater):
                 topic_attrs = [

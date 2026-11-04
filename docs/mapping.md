@@ -120,3 +120,35 @@ A pressure sensor entity is created when `WaterPressure` is present.
 | MQTT message | Field | Access | HA control / attribute |
 |---|---|---|---|
 | `WaterPressure` | `value.value` | read | Native value (unit: bar) |
+
+## Time programs
+
+A read-only **Time Program** sensor is created for each weekly schedule the
+controller exposes (ctlv2 / VRC 720, `b555` messages from `15.ctlv2.csv`):
+
+| Program | MQTT messages | Placed on | Created when |
+|---|---|---|---|
+| Heating | `Z{n}Timer_*` | Zone device | Zone climate entity exists and a `Z{n}Timer_*` message is present |
+| Hot water | `HwcTimer_*` | Hot Water device | A `HwcTimer_*` message is present |
+| Circulation | `CcTimer_*` | Hot Water device | A `CcTimer_*` message is present and at least one day has a slot |
+
+| MQTT message | Fields | Access | Meaning |
+|---|---|---|---|
+| `Z{n}Timer_Timeframes` | `slotcount` ... `slotcount_6` | read | Active slots per day, Monday first |
+| `Z{n}Timer_{Day}{0..2}` | `htm`, `htm_1`, `slottemp` | read | Slot start, end (`24:00` = midnight) and target temperature |
+
+Only the first `slotcount` slots of a day are used, since the controller keeps
+stale values in unused slot registers. Circulation slots have no temperature.
+
+The sensor state is `active` while the current time lies inside a slot, and
+`inactive` otherwise. Attributes:
+
+| Attribute | Example |
+|---|---|
+| `schedule` | `{"monday": [{"start": "06:00", "end": "22:00", "temperature": 21.0}], ...}` |
+| `slot_start`, `slot_end` | `06:00`, `22:00` (`null` outside a slot) |
+| `slot_temperature` | `21.0` (not for circulation) |
+| `next_change` | Next time the state or slot temperature changes, ISO 8601 |
+
+Timer messages are requested via `/get` like all other values. Writing time
+programs is not supported yet.
