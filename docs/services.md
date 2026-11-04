@@ -18,7 +18,7 @@ These services are provided by the integration itself and are not tied to a spec
 
 ## Climate
 
-Available on: `EbusdClimateEntity`
+Available on: `EbusdClimateEntity`, `_EbusdSetpointBase`
 
 | Service | Description | Extra Fields |
 |---|---|---|
@@ -42,7 +42,7 @@ Available on: `EbusdWaterHeaterEntity`
 
 ## Switch
 
-Available on: `EbusdAwayModeSwitch`, `EbusdHwcAwayModeSwitch`, `EbusdHwcBoostSwitch`
+Available on: `EbusdAwayModeSwitch`, `EbusdHwcAwayModeSwitch`, `EbusdHwcBoostSwitch`, `EbusdQuickVetoSwitch`
 
 | Service | Description | Extra Fields |
 |---|---|---|
