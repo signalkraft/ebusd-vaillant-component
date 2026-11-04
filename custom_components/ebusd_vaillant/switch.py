@@ -93,7 +93,7 @@ class EbusdAwayModeSwitch(SwitchEntity):
         self._away_duration = away_duration
         self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
         self._unsubscribe: list[Any] = []
@@ -174,7 +174,7 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
         self._away_duration = away_duration
         self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
         self._unsubscribe: list[Any] = []
@@ -256,7 +256,7 @@ class EbusdHwcBoostSwitch(SwitchEntity):
         self._config = config
         self._attr_name = "Boost"
         self._attr_unique_id = f"ebusd_boost_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._sf_mode: str | None = None
         self._unsubscribe: list[Any] = []
 
@@ -329,7 +329,7 @@ class EbusdQuickVetoSwitch(SwitchEntity):
         self._quick_veto_duration = quick_veto_duration
         self._attr_name = "Quick Veto"
         self._attr_unique_id = f"ebusd_quick_veto_{config.key}"
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
         self._quick_veto_end_date: str | None = None
         self._quick_veto_end_time: str | None = None
         self._unsubscribe: list[Any] = []

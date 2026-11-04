@@ -84,4 +84,4 @@ class EbusdSensor(_EbusdNumericSensor):
         )
         self._attr_state_class = SensorStateClass(config.state_class)
         self._attr_native_unit_of_measurement = config.unit
-        self._attr_device_info = build_device_info(config)
+        self._attr_device_info = build_device_info(hass, config)
